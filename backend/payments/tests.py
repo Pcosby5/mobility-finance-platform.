@@ -5,10 +5,12 @@ import hmac
 import json
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import MagicMock, patch
 
+import requests
 from credit.models import CreditAssessment
 from customers.models import CustomerProfile
-from django.test import Client
+from django.test import Client, SimpleTestCase
 from django.urls import reverse
 from django.utils import timezone
 from loans.models import Loan
@@ -20,7 +22,7 @@ from users.models import User
 from vehicles.models import Vehicle
 
 from .models import Payment, WebhookEvent
-from .providers import get_provider
+from .providers import PaymentProviderError, PaystackProvider, generate_reference, get_provider
 from .services import _apply_failure, _apply_success, handle_webhook, initialize_payment
 
 
@@ -323,24 +325,38 @@ class PaystackWebhookTests(PaymentFixtureMixin, APITestCase):
         loan.save()
         return loan
 
+    def make_pending_payment(self, loan):
+        """Create a PENDING payment row directly.
+
+        Webhook tests exercise delivery handling, not initialization; creating
+        the row avoids touching the real Paystack API (no HTTP in tests).
+        """
+        return Payment.objects.create(
+            loan=loan,
+            customer=loan.customer,
+            provider=Payment.Provider.PAYSTACK,
+            reference=generate_reference(prefix="PSK"),
+            currency=loan.currency,
+            amount=Decimal("100.00"),
+        )
+
     def setUp(self):
         # A dedicated HTTP client: webhook requests are unauthenticated by design.
         self.webhook_client = Client()
 
     def test_invalid_signature_is_rejected_and_audited(self):
         loan = self.make_loan(1)
-        payment, _ = initialize_payment(
-            actor=self.operator, loan_id=loan.pk, provider_name="PAYSTACK"
-        )
+        payment = self.make_pending_payment(loan)
         body = json.dumps(
             {"event": "charge.success", "data": {"reference": payment.reference}}
         ).encode()
-        response = self.webhook_client.post(
-            reverse("payments:paystack-webhook"),
-            data=body,
-            content_type="application/json",
-            HTTP_X_PAYSTACK_SIGNATURE="deadbeef",
-        )
+        with self.settings(PAYSTACK_SECRET_KEY="test-paystack-secret"):
+            response = self.webhook_client.post(
+                reverse("payments:paystack-webhook"),
+                data=body,
+                content_type="application/json",
+                HTTP_X_PAYSTACK_SIGNATURE="deadbeef",
+            )
         self.assertEqual(response.status_code, 401)
         payment.refresh_from_db()
         self.assertEqual(payment.status, Payment.Status.PENDING)
@@ -372,9 +388,7 @@ class PaystackWebhookTests(PaymentFixtureMixin, APITestCase):
 
     def test_duplicate_delivery_applies_balance_once(self):
         loan = self.make_loan(3)
-        payment, _ = initialize_payment(
-            actor=self.operator, loan_id=loan.pk, provider_name="PAYSTACK"
-        )
+        payment = self.make_pending_payment(loan)
         verified = {
             "status": "success",
             "provider_transaction_id": "T-900",
@@ -546,3 +560,68 @@ class PaymentAPITests(PaymentFixtureMixin, APITestCase):
         self.assertEqual(payment_row.status, Payment.Status.SUCCESS)
         loan.refresh_from_db()
         self.assertEqual(loan.outstanding_balance, loan.total_repayable - payment_row.amount)
+
+
+class PaystackProviderClientTests(SimpleTestCase):
+    """Paystack REST client behaviour with requests mocked at the boundary.
+
+    No test in this suite touches the network: CI runs with a placeholder key,
+    so the client is exercised through mocked responses only.
+    """
+
+    def setUp(self):
+        self.provider = PaystackProvider(secret_key="sk_test_unit")
+
+    def test_missing_secret_key_is_rejected(self):
+        # Empty arg falls back to settings; both must be empty to trigger the
+        # guard, so the test pins settings instead of trusting the environment.
+        with self.settings(PAYSTACK_SECRET_KEY=""):
+            with self.assertRaises(PaymentProviderError):
+                PaystackProvider(secret_key="")
+
+    def test_create_payment_converts_amount_to_subunits(self):
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "status": True,
+            "message": "Authorization URL created",
+            "data": {"authorization_url": "https://checkout.paystack.com/test"},
+        }
+        with patch("payments.providers.requests.post", return_value=response) as mock_post:
+            data = self.provider.create_payment(
+                reference="PSK-TEST",
+                amount=Decimal("150.00"),
+                currency="GHS",
+                metadata={"email": "customer@example.com", "loan_id": "abc"},
+            )
+        self.assertEqual(data["authorization_url"], "https://checkout.paystack.com/test")
+        payload = mock_post.call_args.kwargs["json"]
+        self.assertEqual(payload["amount"], 15000)  # major units -> pesewas
+        self.assertEqual(payload["metadata"], {"loan_id": "abc"})
+
+    def test_create_payment_wraps_http_errors(self):
+        with patch(
+            "payments.providers.requests.post",
+            side_effect=requests.RequestException("boom"),
+        ):
+            with self.assertRaises(PaymentProviderError):
+                self.provider.create_payment(
+                    reference="PSK-TEST",
+                    amount=Decimal("10.00"),
+                    currency="GHS",
+                    metadata={"email": "customer@example.com"},
+                )
+
+    def test_verify_payment_maps_provider_fields(self):
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "status": True,
+            "data": {"status": "success", "id": 12345, "amount": 15000, "currency": "GHS"},
+        }
+        with patch("payments.providers.requests.get", return_value=response):
+            verified = self.provider.verify_payment("PSK-TEST")
+        self.assertEqual(verified["status"], "success")
+        self.assertEqual(verified["provider_transaction_id"], "12345")
+        self.assertEqual(Decimal(verified["amount"]), Decimal("150.00"))  # subunits -> major
+        self.assertEqual(verified["currency"], "GHS")

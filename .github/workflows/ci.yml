@@ -32,7 +32,9 @@ jobs:
     env:
       DJANGO_SECRET_KEY: ci-only-not-secret
       DATABASE_URL: postgresql://mobility:mobility@127.0.0.1:5432/mobility_finance
-      PAYSTACK_SECRET_KEY: sk_test_ci_placeholder
+      # No Paystack key here on purpose: the suite never touches the network.
+      # The provider client is tested with mocked responses, so CI cannot make
+      # a real (or failing-placeholder) call to api.paystack.co.
 
     steps:
       - uses: actions/checkout@v4

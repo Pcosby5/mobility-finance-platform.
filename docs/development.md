@@ -194,6 +194,15 @@ accepted there, so a leaked access token cannot resolve simulated charges.
 Paystack webhook tests cover signature rejection, unknown references and
 duplicate delivery; MoMo tests cover success, failure and duplicate callbacks.
 
+The suite is hermetic by construction: no test touches the network. The
+provider client is exercised with ``unittest.mock`` at the ``requests``
+boundary (subunit conversion, error wrapping, field mapping), webhook tests
+create PENDING payment rows directly instead of initializing them, and CI
+runs with no Paystack key at all - so any future accidental live call fails
+loudly instead of passing against a real key. This mattered in practice: the
+first CI run exposed tests that silently called the real Paystack TEST API
+because the local ``.env`` key made them pass.
+
 ## Step 8: MQTT telemetry pipeline
 
 Telemetry is transported by MQTT (paho-mqtt 2.1.0, the only new dependency) and
