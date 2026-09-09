@@ -151,3 +151,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SECURE_SSL_REDIRECT = not DEBUG
+# Render (like most PaaS) terminates TLS at its proxy and forwards HTTP. This
+# header is how Django learns the original request was HTTPS; Render's proxy
+# sets it and external traffic cannot bypass the proxy, so trusting it is safe.
+# Local requests carry no such header, so local behaviour is unchanged.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

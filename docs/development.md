@@ -291,6 +291,33 @@ listener (loopback-only is unusable between containers) and has no healthcheck
 because the image ships no client binaries - the consumer's reconnect handles
 broker startup races.
 
+## Step 11: CI and Render deployment
+
+GitHub Actions (``.github/workflows/ci.yml``) runs the same gates as local
+verification on every push and pull request: ruff lint/format, Django system
+checks, ``makemigrations --check`` (blocks uncommitted model changes), OpenAPI
+validation with ``--fail-on-warn``, and the full suite in parallel against a
+PostgreSQL 16 service container — the same engine as development and
+production, so partial unique constraints, CHECK constraints and
+``SELECT ... FOR UPDATE`` behave in CI exactly as locally.
+
+Render is configured as a Blueprint (``render.yaml``) plus ``build.sh``: a free
+PostgreSQL instance, a web service (``build.sh`` = install + migrate +
+collectstatic, then gunicorn bound to ``$PORT``) and a worker running the MQTT
+consumer. Builds fail loudly via ``set -euo pipefail``, so a broken release
+never replaces a working one. Secrets are dashboard-only: the Blueprint
+declares ``sync: false`` for Paystack keys and ``generateValue`` for runtime
+secrets; nothing sensitive lives in the repository.
+
+Deployment decisions worth explaining: the web build owns migrations because
+concurrent web/worker deploys must not race DDL — the worker's build only
+installs dependencies. ``SECURE_PROXY_SSL_HEADER`` trusts Render's edge proxy
+for the forwarded protocol, which is what makes ``SECURE_SSL_REDIRECT`` safe
+behind TLS termination; local traffic carries no such header, so behaviour is
+unchanged. The free-tier worker expects ``MQTT_BROKER_HOST`` from the
+dashboard (a public test broker for the demo; AWS IoT Core is the documented
+production evolution) because Render does not run brokers.
+
 ## Next small milestone
 
 Swagger is available at `/api/docs/`, with the schema at `/api/schema/`.
@@ -298,8 +325,9 @@ drf-spectacular generates OpenAPI from the serializers; explicit token responses
 describe rotation and logout accurately. Its sidecar package serves UI assets
 locally. Schema validation is part of verification.
 
-Next add the GitHub Actions pipeline (lint, checks, PostgreSQL-backed tests,
-migration verification) and then the Render deployment configuration.
+Next complete the portfolio documentation: architecture diagrams, payment and
+MQTT flow explanations, production evolution (AWS IoT Core) and limitations in
+the README.
 
 ## Remaining phases
 
@@ -308,8 +336,8 @@ migration verification) and then the Render deployment configuration.
 4. ~~Mosquitto, a separate MQTT consumer and GPS simulator.~~
 5. ~~Telemetry history, geofences, alerts and retention.~~
 6. ~~Docker and Compose.~~
-7. Consolidated tests and GitHub Actions CI.
-8. Render deployment.
+7. ~~Consolidated tests and GitHub Actions CI.~~
+8. ~~Render deployment.~~
 9. Portfolio demonstration, README and production evolution documentation.
 
 Tests and documentation accompany every milestone. No paid cloud resources are

@@ -1,0 +1,84 @@
+# Render Blueprint for the Mobility Finance demo platform.
+#
+# Deploy by connecting the GitHub repo at dashboard.render.com and choosing
+# "New Blueprint Instance" - Render reads this file and creates the services.
+# All secrets live in the dashboard's environment settings; this file contains
+# only non-secret defaults, and generate_value secrets are created by Render
+# and synced on deploy.
+#
+# No real financial transactions are processed. Paystack must use TEST keys.
+
+databases:
+  - name: mobility-finance-db
+    databaseName: mobility_finance
+    user: mobility
+    plan: free
+
+services:
+  # HTTP API: Django under gunicorn, served from the same code as local.
+  - type: web
+    name: mobility-finance-api
+    runtime: python
+    plan: free
+    buildCommand: ./build.sh
+    startCommand: cd backend && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --access-logfile -
+    healthCheckPath: /api/health/
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mobility-finance-db
+          property: connectionString
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.12.6
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: .onrender.com
+      # Render terminates TLS at its edge proxy; the app reads the forwarded
+      # protocol header (SECURE_PROXY_SSL_HEADER) and needs no CLI flags.
+      - key: WEB_CONCURRENCY
+        value: 2
+      # Static files: whitenoise serves collectstatic output from the same
+      # process, so no CDN or extra service is required for the demo.
+      - key: STATIC_ROOT
+        value: /opt/render/project/src/.local/staticfiles
+      # Paystack TEST keys only; set them in the dashboard, never commit them.
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: MOCK_MOMO_WEBHOOK_SECRET
+        generateValue: true
+
+  # MQTT telemetry consumer: the same image/idea as the Compose service - one
+  # codebase, two long-running roles. It reconnects to the broker with backoff.
+  # The broker itself is NOT part of this free-tier deployment: point
+  # MQTT_BROKER_HOST/PORT at a public test broker, or see the README's
+  # production-architecture section for the AWS IoT Core evolution.
+  # The worker's build deliberately skips migrate/collectstatic: the web
+  # service's build owns migrations, so concurrent deploys cannot race DDL.
+  - type: worker
+    name: mobility-finance-consumer
+    runtime: python
+    plan: free
+    buildCommand: pip install --no-cache-dir -r requirements/base.txt
+    startCommand: cd backend && python manage.py run_mqtt_consumer
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mobility-finance-db
+          property: connectionString
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.12.6
+      - key: DEBUG
+        value: "False"
+      - key: MQTT_BROKER_HOST
+        sync: false
+      - key: MQTT_BROKER_PORT
+        value: "1883"
