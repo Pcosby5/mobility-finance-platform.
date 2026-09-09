@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "credit.apps.CreditConfig",
     "vehicles.apps.VehiclesConfig",
     "loans.apps.LoansConfig",
+    "payments.apps.PaymentsConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -110,6 +111,12 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": False,
 }
+
+# Payment providers. Paystack must use its TEST keys; the MoMo secret only
+# authenticates the local simulator's callbacks.
+PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
+PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", default="")
+MOCK_MOMO_WEBHOOK_SECRET = env("MOCK_MOMO_WEBHOOK_SECRET", default="momo-dev-secret")
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

@@ -163,6 +163,37 @@ month-end clamping, eligibility and affordability rejections, assessment stalene
 and snapshot drift, activation rechecks, cancel semantics, per-vehicle and
 financial database constraints, ownership scoping and management permissions.
 
+## Step 7: payments, webhooks and idempotency
+
+Payments go through a small provider interface (`create_payment`,
+`verify_payment`, `verify_webhook_signature`). `PaystackProvider` talks to the
+Paystack REST API in TEST mode over `requests` (the only new dependency);
+`MockMomoProvider` is a local simulator with no network calls. Neither leaks
+into services or views: `get_provider(name)` is the only factory, and adding a
+future provider touches only `providers.py`.
+
+`Payment` rows are an append-only ledger: initialization creates PENDING, and
+only verified provider outcomes can move them to a terminal state. Webhook
+payloads point at a transaction but are never trusted for the outcome - the
+handler re-verifies with the provider before any money moves. Settlement runs
+in one transaction under a loan row lock, and terminal transitions use
+conditional updates (`WHERE status = 'PENDING'`) so concurrent redeliveries
+have a single winner; a duplicate observes "already processed" and is audited
+in `WebhookEvent` without any financial side effect. Amount and currency are
+cross-checked against the provider's verified record before a balance moves.
+
+A full-balance settlement completes the loan; a partial one reduces the
+outstanding balance. Failed payments are recorded with a reason and leave
+balances untouched. Amount mismatches become FAILED payments rather than
+silent partial credits.
+
+The MoMo simulator resolves charges through a staff-session-only endpoint that
+signs and forwards a callback through the normal webhook pipeline, so the code
+under test is the production path. JWT credentials are deliberately not
+accepted there, so a leaked access token cannot resolve simulated charges.
+Paystack webhook tests cover signature rejection, unknown references and
+duplicate delivery; MoMo tests cover success, failure and duplicate callbacks.
+
 ## Next small milestone
 
 Swagger is available at `/api/docs/`, with the schema at `/api/schema/`.
@@ -170,14 +201,13 @@ drf-spectacular generates OpenAPI from the serializers; explicit token responses
 describe rotation and logout accurately. Its sidecar package serves UI assets
 locally. Schema validation is part of verification.
 
-Next build payments: a provider abstraction (Paystack test mode plus a simulated
-mobile-money provider), payment records, verified and idempotent webhooks, and
-loan balance updates that ride the same transaction discipline as origination.
+Next build the MQTT pipeline: Mosquitto for local development, a separate
+telemetry consumer, and the GPS simulator that publishes to it.
 
 ## Remaining phases
 
 1. ~~Loans and repayment schedules using saved credit assessments and vehicles.~~
-3. Test payments, provider abstraction, verified/idempotent webhooks and Mock MoMo.
+3. ~~Test payments, provider abstraction, verified/idempotent webhooks and Mock MoMo.~~
 4. Mosquitto, a separate MQTT consumer and GPS simulator.
 5. Telemetry history, geofences, alerts and retention.
 6. Docker and Compose.
