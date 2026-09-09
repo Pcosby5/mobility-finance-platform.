@@ -36,6 +36,9 @@ INSTALLED_APPS = [
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serves collectstatic output directly from the web process, so gunicorn
+    # does not need a separate static server in the demo containers.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -141,7 +144,8 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
-STATIC_ROOT = PROJECT_DIR / ".local" / "staticfiles"
+# Compose (and later Render) override this to a writable, persisted path.
+STATIC_ROOT = env("STATIC_ROOT", default=PROJECT_DIR / ".local" / "staticfiles")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 SESSION_COOKIE_SECURE = not DEBUG

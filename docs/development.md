@@ -265,6 +265,32 @@ operations/admin. Customers are scoped to their own vehicles. Tests cover
 haversine distances, the full alert lifecycle, offline refresh semantics,
 geofence serializer/coordinate rules and API scoping.
 
+## Step 10: Docker and Compose
+
+The backend image (``backend/Dockerfile``) is production-parity: code is baked
+into a slim, non-root image rather than bind-mounted, so what runs locally is
+what ships to Render. One image serves both the web role (``migrate`` +
+``collectstatic`` + gunicorn) and the consumer role (``run_mqtt_consumer``);
+commands come from Compose/Render, keeping the artifact single. The GPS
+simulator is a separate tiny image because a device only needs paho-mqtt and a
+broker address.
+
+``docker-compose.yml`` brings up PostgreSQL 16, Mosquitto, web, consumer and an
+optional ``--profile demo`` simulator. Shared environment comes from a YAML
+anchor so web and consumer never drift. The Postgres host port is 5433 to
+coexist with a native installation; the container path is always ``db:5432``.
+Static files are served by whitenoise (new dependency) because DEBUG=False
+disables Django's static serving and the demo containers run gunicorn without
+a separate static server; ``STATIC_ROOT`` is environment-overridable.
+
+Docker is unavailable in the current WSL session, so compose files were
+validated structurally (YAML parse, anchor/merge, env keys) and the full local
+suite still passes; the image build and end-to-end compose run are part of the
+user's local verification. Mosquitto's container config uses a 0.0.0.0
+listener (loopback-only is unusable between containers) and has no healthcheck
+because the image ships no client binaries - the consumer's reconnect handles
+broker startup races.
+
 ## Next small milestone
 
 Swagger is available at `/api/docs/`, with the schema at `/api/schema/`.
@@ -272,8 +298,8 @@ drf-spectacular generates OpenAPI from the serializers; explicit token responses
 describe rotation and logout accurately. Its sidecar package serves UI assets
 locally. Schema validation is part of verification.
 
-Next containerize the stack: Dockerfile, Compose with PostgreSQL, Mosquitto,
-web and consumer services, then CI and deployment.
+Next add the GitHub Actions pipeline (lint, checks, PostgreSQL-backed tests,
+migration verification) and then the Render deployment configuration.
 
 ## Remaining phases
 
@@ -281,7 +307,7 @@ web and consumer services, then CI and deployment.
 3. ~~Test payments, provider abstraction, verified/idempotent webhooks and Mock MoMo.~~
 4. ~~Mosquitto, a separate MQTT consumer and GPS simulator.~~
 5. ~~Telemetry history, geofences, alerts and retention.~~
-6. Docker and Compose.
+6. ~~Docker and Compose.~~
 7. Consolidated tests and GitHub Actions CI.
 8. Render deployment.
 9. Portfolio demonstration, README and production evolution documentation.

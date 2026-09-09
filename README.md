@@ -91,6 +91,44 @@ Existing shell environment variables override `.env`. `DEBUG` defaults to false,
 which enables HTTPS redirects and secure cookies. The explicit `DEBUG=True` above
 allows local HTTP even when the shell already defines `DEBUG=False`.
 
+## Docker (full stack)
+
+Prefer the native setup above? It still works — Compose is optional.
+
+Docker brings up the whole demo — PostgreSQL 16, Mosquitto, the API under
+gunicorn, the telemetry consumer and (optionally) the GPS simulator — with one
+command from the repository root:
+
+```bash
+cp .env.example .env            # then set DJANGO_SECRET_KEY (required)
+docker compose up --build       # add --profile demo to include the simulator
+```
+
+| Service | Address | Notes |
+| --- | --- | --- |
+| API / Swagger | http://localhost:8000/api/docs/ | `migrate` + `collectstatic` run automatically |
+| Health | http://localhost:8000/api/health/ | container healthcheck target |
+| Mosquitto | localhost:1883 | anonymous, demo only |
+| PostgreSQL | localhost:5433 | host port 5433 to avoid clashing with a native install; containers use `db:5432` |
+
+Shared settings come from the environment or the root `.env` (Compose reads it
+automatically): `DJANGO_SECRET_KEY` is required; `POSTGRES_DB`, `POSTGRES_USER`,
+`POSTGRES_PASSWORD` seed the database container; `PAYSTACK_SECRET_KEY`,
+`PAYSTACK_PUBLIC_KEY` and `MQTT_*` pass through to both web and consumer. The
+web and consumer services share one backend image; only their commands differ.
+
+Drive a vehicle through the simulated broker by enabling the `demo` profile and
+giving the simulator a device id:
+
+```bash
+docker compose --profile demo up --build
+docker compose logs -f consumer   # watch telemetry being stored
+```
+
+To stop and reset the database volume: `docker compose down` (add `-v` to
+remove data). The consumer reconnects to Mosquitto automatically, so broker
+startup order does not need orchestration.
+
 ## Verification
 
 With the virtual environment activated, run Django checks **from `backend/`** so
