@@ -15,8 +15,8 @@ Implemented: Django project, PostgreSQL configuration, custom user with customer
 operations and admin roles, Django admin, a public liveness endpoint, initial
 migration, registration, JWT login/refresh/logout, a current-user API and
 authentication tests, customer profiles with ownership permissions, and Swagger/OpenAPI
-documentation, plus versioned demo credit assessments. Loans, payments and IoT
-features are still planned.
+documentation, versioned demo credit assessments, and vehicle/device inventory.
+Loans, payments and MQTT/telemetry ingestion are still planned.
 
 ```text
 backend/
@@ -25,6 +25,7 @@ backend/
   users/        # Custom user, admin, migrations, tests
   customers/    # UUID customer profiles, permissions, validation, tests
   credit/       # Versioned rules, scoring, saved assessments, tests
+  vehicles/     # Vehicle/device inventory, assignment, permissions, tests
 requirements/   # Pinned runtime and development dependencies
 docs/           # Decisions and development milestones
 ```
@@ -320,5 +321,71 @@ existing assessments retain their recorded rules and inputs.
 To test snapshot behaviour, assess your profile, PATCH its monthly income to `0`,
 then assess again. The new assessment should be rejected while the first stays
 unchanged. Restore the profile's demo inputs afterwards if desired.
+
+## Vehicles and devices
+
+Swagger now includes **Vehicles** and **Devices**. Both use UUID primary keys.
+
+| Method | Endpoint | Access |
+| --- | --- | --- |
+| GET | `/api/v1/vehicles/` | Customers: assigned vehicles; operations/admin: all |
+| POST | `/api/v1/vehicles/` | Operations/admin only |
+| GET | `/api/v1/vehicles/{id}/` | Assigned customer or operations/admin |
+| PATCH | `/api/v1/vehicles/{id}/` | Operations/admin only |
+| GET, POST | `/api/v1/devices/` | Operations/admin only |
+| GET, PATCH | `/api/v1/devices/{id}/` | Operations/admin only |
+
+Use a separate operations account to test creation. Log in to Django admin with
+a superuser, add a user and set its **Platform → Role** to **Operations**. Keep
+`demo_customer` as CUSTOMER. An operations API account does not need `is_staff`.
+Then log in to Swagger with the operations account and replace its Authorize token.
+
+Create a vehicle, setting `customer` to the **customer profile UUID**, not the
+user account UUID. Omit it for an unassigned vehicle:
+
+```json
+{
+  "registration_number": "DEMO-001",
+  "vin": "1HGCM82633A004352",
+  "make": "Honda",
+  "model_name": "Accord",
+  "year": 2003,
+  "status": "ACTIVE"
+}
+```
+
+PATCH `{"customer":"YOUR_CUSTOMER_PROFILE_UUID"}` to assign a vehicle, or
+`{"customer":null}` to unassign it. Create a device with a unique, stable label:
+
+```json
+{
+  "device_id": "GPS-001",
+  "enabled": true
+}
+```
+
+PATCH the device with `{"vehicle":"YOUR_VEHICLE_UUID"}` to link it. Each vehicle
+can have one device; multiple unassigned devices are allowed. Detach a device with
+`{"vehicle":null}` before replacing it. `{"enabled":false}` marks it disabled but
+does not detach it. `device_id` is immutable and is a case-sensitive routing label,
+not an authentication credential. MQTT will enforce enabled state in a later phase.
+
+Switch Swagger authorization back to the customer account: it should see only
+assigned vehicles, including a read-only device summary. Vehicle writes and device
+management return 403; another customer's vehicle returns 404. Reassignment removes
+the previous customer's access. Delete and PUT are not exposed.
+
+Registration and VIN are trimmed, uppercased and unique. VIN validation checks
+format (17 characters, excluding I/O/Q), not manufacturer records or ownership.
+Supported model years are 1900 through next year.
+
+Vehicle `status` describes lifecycle: ACTIVE, MAINTENANCE or RETIRED. Connectivity
+(UNKNOWN/ONLINE/OFFLINE) and movement (UNKNOWN/MOVING/PARKED) are separate read-only
+fields. Both start UNKNOWN, with null GPS coordinates and telemetry timestamp.
+No simulator or MQTT consumer runs yet. Later telemetry ingestion will update these
+fields; REST clients cannot forge them through inventory endpoints.
+
+This milestone permits operations/admin reassignment. Loan-linked reassignment
+rules and historical telemetry ownership will be addressed when those modules arrive.
 
 See [development decisions](docs/development.md) for architecture and next steps.

@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "users.apps.UsersConfig",
     "customers.apps.CustomersConfig",
     "credit.apps.CreditConfig",
+    "vehicles.apps.VehiclesConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

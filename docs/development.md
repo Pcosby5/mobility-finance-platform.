@@ -107,6 +107,29 @@ customer history and direct assessment retrieval. Tests cover cutoff boundaries,
 zero income, high debt payments, missing history, reproducibility, unchanged old
 snapshots after profile edits, permissions and database constraints.
 
+## Step 5: vehicle and device inventory
+
+Vehicle and Device use UUIDv4 primary keys. A vehicle optionally belongs to a
+customer profile, and a device optionally belongs to one vehicle. Database unique
+constraints protect registration, VIN, device identifier and one-device-per-vehicle
+assignment. Serializer save transactions turn uniqueness races into validation
+errors. Identifiers are normalized before uniqueness validation.
+
+Operations/admins manage inventory. Customers have read-only access to assigned
+vehicles and a small device summary; device management endpoints are restricted.
+Queryset filtering and permissions protect list/detail access. Client-controlled
+telemetry fields and unknown/read-only fields are rejected. No deletion API exists.
+
+Vehicle lifecycle, connectivity and movement are distinct. Telemetry starts unknown
+rather than implying a device is connected. Coordinates have paired-null and range
+constraints. The immutable device identifier provides a future MQTT routing identity;
+broker credentials and ingestion validation are not part of this milestone.
+
+No new dependencies were needed. Tests cover UUID schemas, customer scope, management
+permissions, assignment/detachment, uniqueness races, input/database validation and
+read-only telemetry. When loans and telemetry arrive, enforce restrictions on
+reassignment and preserve historical ownership before exposing their data.
+
 ## Next small milestone
 
 Swagger is available at `/api/docs/`, with the schema at `/api/schema/`.
@@ -114,13 +137,13 @@ drf-spectacular generates OpenAPI from the serializers; explicit token responses
 describe rotation and logout accurately. Its sidecar package serves UI assets
 locally. Schema validation is part of verification.
 
-Test credit assessment creation and history in Swagger. Basic vehicles/devices
-follow before vehicle-linked loans.
+Test vehicle/device creation and assignment in Swagger. Next build loans linked
+to the customer, a saved credit assessment and a vehicle, with explicit interest
+calculations and repayment schedules.
 
 ## Remaining phases
 
-1. Basic vehicles/devices with ownership permissions.
-2. Loans and repayment schedules using saved credit assessments.
+1. Loans and repayment schedules using saved credit assessments and vehicles.
 3. Test payments, provider abstraction, verified/idempotent webhooks and Mock MoMo.
 4. Mosquitto, a separate MQTT consumer and GPS simulator.
 5. Telemetry history, geofences, alerts and retention.
