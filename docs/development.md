@@ -68,6 +68,25 @@ it invalidates old sessions and the new JWT claim requires a fresh login. A migr
 test exercises an existing account with groups, permissions, admin logs and tokens.
 Fresh-database migrations are also exercised by the test suite.
 
+## Step 3: customer profiles
+
+CustomerProfile has its own UUID and a unique, protected link to a customer User.
+Create is explicit rather than a registration signal: profile inputs are supplied
+after account creation. Customers act on their own profile; operations/admins can
+manage all profiles. Queryset filtering prevents enumeration of other customers,
+and an object permission reinforces ownership. User reassignment is prohibited.
+
+Serializer validation covers phone format, nonnegative decimal amounts, employment
+choices and immutable fields. Database constraints protect amounts, choices and
+the one-profile-per-account invariant; a post-validation duplicate race returns a
+validation error. No new dependencies were needed.
+
+Financial values are self-reported demo inputs in a declared currency. Outstanding
+debt and monthly debt payments are separate because only the latter can be compared
+directly to monthly income for a debt-to-income ratio. Repayment history will be
+derived from financial records later. Future credit assessments must snapshot the
+inputs and rules version so subsequent profile edits do not change past decisions.
+
 ## Next small milestone
 
 Swagger is available at `/api/docs/`, with the schema at `/api/schema/`.
@@ -75,13 +94,13 @@ drf-spectacular generates OpenAPI from the serializers; explicit token responses
 describe rotation and logout accurately. Its sidecar package serves UI assets
 locally. Schema validation is part of verification.
 
-Introduce customer profiles with ownership permissions after manually testing
-authentication in Swagger.
+Test customer creation, listing and updates in Swagger, then build the rules-based
+credit assessment engine. Basic vehicles/devices follow before vehicle-linked loans.
 
 ## Remaining phases
 
-1. Customer profiles and their API documentation.
-2. Basic vehicles/devices, credit assessments, loans and repayment schedules.
+1. Credit assessments with explainable, versioned rules.
+2. Basic vehicles/devices, loans and repayment schedules.
 3. Test payments, provider abstraction, verified/idempotent webhooks and Mock MoMo.
 4. Mosquitto, a separate MQTT consumer and GPS simulator.
 5. Telemetry history, geofences, alerts and retention.

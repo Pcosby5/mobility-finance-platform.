@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "drf_spectacular_sidecar",
     "rest_framework_simplejwt.token_blacklist",
     "users.apps.UsersConfig",
+    "customers.apps.CustomersConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

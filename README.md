@@ -14,14 +14,15 @@ discussion, not an implemented integration.
 Implemented: Django project, PostgreSQL configuration, custom user with customer,
 operations and admin roles, Django admin, a public liveness endpoint, initial
 migration, registration, JWT login/refresh/logout, a current-user API and
-authentication tests, and Swagger/OpenAPI documentation. Customer APIs, payments and IoT
-features are still planned.
+authentication tests, customer profiles with ownership permissions, and Swagger/OpenAPI
+documentation. Credit, loans, payments and IoT features are still planned.
 
 ```text
 backend/
   manage.py
   config/       # Settings, routing, ASGI/WSGI, liveness
   users/        # Custom user, admin, migrations, tests
+  customers/    # UUID customer profiles, permissions, validation, tests
 requirements/   # Pinned runtime and development dependencies
 docs/           # Decisions and development milestones
 ```
@@ -219,5 +220,56 @@ python manage.py flushexpiredtokens
 
 Schedule this daily when deploying. Rotation and revocation use Simple JWT's
 [documented blacklist app](https://django-rest-framework-simplejwt.readthedocs.io/en/stable/blacklist_app.html).
+
+## Customer profiles
+
+Log in and authorize in Swagger, then open the **Customers** section.
+
+| Method | Endpoint | Behaviour |
+| --- | --- | --- |
+| GET | `/api/v1/customers/` | Paginated profiles visible to your account |
+| POST | `/api/v1/customers/` | Create one profile per customer account |
+| GET | `/api/v1/customers/{id}/` | Read a profile by its UUID |
+| PATCH | `/api/v1/customers/{id}/` | Update selected fields; ownership is immutable |
+
+While logged in as `demo_customer`, execute POST with the Swagger example:
+
+```json
+{
+  "full_name": "Demo Customer",
+  "phone": "+233201234567",
+  "employment_status": "EMPLOYED",
+  "employment_duration_months": 24,
+  "currency": "GHS",
+  "monthly_income": "6500.00",
+  "existing_debt": "2000.00",
+  "monthly_debt_repayment": "250.00"
+}
+```
+
+The response returns a new **profile UUID** in `id` and your **account UUID** in
+`user`. Use the profile UUID for customer detail routes. These are different IDs.
+For PATCH, send only fields to change, for example `{"monthly_income":"7000.00"}`.
+
+- CUSTOMER accounts create, list, read and update only their own profile. Omit
+  `user` when creating your own profile. Access to another profile returns 404.
+- ADMIN and OPERATIONS roles can list, read and update all profiles. On creation
+  they must supply `user` with an existing active CUSTOMER account UUID.
+- A second profile for the same account returns 400. Unknown/read-only fields are
+  rejected, and profile ownership cannot be changed. Delete and PUT are not exposed.
+- Email comes from the user account and is read-only here. `full_name` is the
+  customer's declared profile name; it does not change the account's name fields.
+- Amounts are decimal strings in the selected currency (GHS, NGN or USD). These
+  are self-reported demo inputs, not verified financial data. No currency conversion
+  is performed. If changing the currency, resubmit amounts in the new currency.
+- `existing_debt` is a total outstanding balance. `monthly_debt_repayment` is a
+  monthly obligation; it is the relevant input for future debt-to-income calculations.
+  Zero income is accepted and must be handled explicitly by the future scoring engine.
+- Repayment history will come from loan/payment records; customers cannot submit it
+  through this profile endpoint.
+
+Platform roles are separate from Django staff access. A Django superuser with role
+CUSTOMER has customer-level API scope; assign the platform role ADMIN or OPERATIONS
+through the existing user admin when testing those workflows.
 
 See [development decisions](docs/development.md) for architecture and next steps.
