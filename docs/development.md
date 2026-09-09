@@ -194,6 +194,45 @@ accepted there, so a leaked access token cannot resolve simulated charges.
 Paystack webhook tests cover signature rejection, unknown references and
 duplicate delivery; MoMo tests cover success, failure and duplicate callbacks.
 
+## Step 8: MQTT telemetry pipeline
+
+Telemetry is transported by MQTT (paho-mqtt 2.1.0, the only new dependency) and
+processed by a dedicated consumer process: ``python manage.py
+run_mqtt_consumer``. HTTP workers never touch the broker, so a broker outage
+cannot affect API latency and a web redeploy cannot drop the subscription.
+Topics follow ``vehicles/{vehicle_id}/telemetry`` with QoS 1; the consumer
+subscribes with a wildcard and reconnects with bounded backoff.
+
+``telemetry/services.py`` is transport-agnostic: ``process_message(topic,
+body)`` never raises for malformed content (it returns a status for the adapter
+to log), while ``ingest_telemetry`` performs resolution and persistence. A
+future AWS IoT Core rule or REST ingestion endpoint can call the same service.
+
+Idempotency is enforced by the database, not the transport: a unique
+(device_id, recorded_at) constraint collapses QoS 1 redeliveries and consumer
+restarts into one stored record. Payloads are validated in one place — ranges,
+clock skew, types — and the payload's ``vehicle_id`` is never trusted for
+resolution; the registered Device mapping is authoritative, so a misconfigured
+device cannot write into another vehicle's history. Topic/device mismatches are
+logged for operations.
+
+Vehicle denormalized state (last position, ONLINE, MOVING/PARKED at 1 km/h
+threshold) updates in the same transaction as the record insert, under a
+vehicle row lock. History is exposed read-only at
+``/api/v1/vehicles/{id}/telemetry/`` with pagination, ``start``/``end`` ISO
+range filters and ``ordering``; customers are scoped to their vehicles and
+invalid filters fail loudly rather than returning unfiltered data.
+
+The GPS simulator is a standalone script (``gps-simulator/simulator.py``, own
+requirements) that random-walks a virtual vehicle and publishes spec-shaped
+payloads; it holds no database access, keeping the backend the only writer.
+Local broker configuration lives in ``mosquitto/mosquitto.conf`` (loopback,
+unauthenticated, demo only).
+
+No payment or loan behaviour changed. Tests cover payload parsing boundaries,
+idempotent ingestion, device resolution failures, ``process_message`` error
+policies and API scoping/filtering.
+
 ## Next small milestone
 
 Swagger is available at `/api/docs/`, with the schema at `/api/schema/`.
@@ -201,14 +240,15 @@ drf-spectacular generates OpenAPI from the serializers; explicit token responses
 describe rotation and logout accurately. Its sidecar package serves UI assets
 locally. Schema validation is part of verification.
 
-Next build the MQTT pipeline: Mosquitto for local development, a separate
-telemetry consumer, and the GPS simulator that publishes to it.
+Next add Phase 5 intelligence on top of the pipeline: radius-based geofence
+evaluation during ingestion, alert records (offline, geofence exit, speeding,
+low battery) and an alerts API with resolve semantics.
 
 ## Remaining phases
 
 1. ~~Loans and repayment schedules using saved credit assessments and vehicles.~~
 3. ~~Test payments, provider abstraction, verified/idempotent webhooks and Mock MoMo.~~
-4. Mosquitto, a separate MQTT consumer and GPS simulator.
+4. ~~Mosquitto, a separate MQTT consumer and GPS simulator.~~
 5. Telemetry history, geofences, alerts and retention.
 6. Docker and Compose.
 7. Consolidated tests and GitHub Actions CI.

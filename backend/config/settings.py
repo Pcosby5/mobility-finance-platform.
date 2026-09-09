@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "vehicles.apps.VehiclesConfig",
     "loans.apps.LoansConfig",
     "payments.apps.PaymentsConfig",
+    "telemetry.apps.TelemetryConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -117,6 +118,14 @@ SIMPLE_JWT = {
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
 PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", default="")
 MOCK_MOMO_WEBHOOK_SECRET = env("MOCK_MOMO_WEBHOOK_SECRET", default="momo-dev-secret")
+
+# MQTT telemetry. The consumer is a separate process (manage.py run_mqtt_consumer);
+# HTTP request handling never touches the broker.
+MQTT_BROKER_HOST = env("MQTT_BROKER_HOST", default="127.0.0.1")
+MQTT_BROKER_PORT = env.int("MQTT_BROKER_PORT", default=1883)
+MQTT_USERNAME = env("MQTT_USERNAME", default="")
+MQTT_PASSWORD = env("MQTT_PASSWORD", default="")
+MQTT_KEEPALIVE_SECONDS = env.int("MQTT_KEEPALIVE_SECONDS", default=30)
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
