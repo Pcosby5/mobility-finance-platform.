@@ -15,7 +15,8 @@ Implemented: Django project, PostgreSQL configuration, custom user with customer
 operations and admin roles, Django admin, a public liveness endpoint, initial
 migration, registration, JWT login/refresh/logout, a current-user API and
 authentication tests, customer profiles with ownership permissions, and Swagger/OpenAPI
-documentation. Credit, loans, payments and IoT features are still planned.
+documentation, plus versioned demo credit assessments. Loans, payments and IoT
+features are still planned.
 
 ```text
 backend/
@@ -23,6 +24,7 @@ backend/
   config/       # Settings, routing, ASGI/WSGI, liveness
   users/        # Custom user, admin, migrations, tests
   customers/    # UUID customer profiles, permissions, validation, tests
+  credit/       # Versioned rules, scoring, saved assessments, tests
 requirements/   # Pinned runtime and development dependencies
 docs/           # Decisions and development milestones
 ```
@@ -271,5 +273,52 @@ For PATCH, send only fields to change, for example `{"monthly_income":"7000.00"}
 Platform roles are separate from Django staff access. A Django superuser with role
 CUSTOMER has customer-level API scope; assign the platform role ADMIN or OPERATIONS
 through the existing user admin when testing those workflows.
+
+## Demo credit assessments
+
+In Swagger's **Credit** section, use your customer **profile UUID** and execute
+`POST /api/v1/customers/{customer_id}/credit-assessments/` with `{}`. Inputs come
+from the saved profile; callers cannot submit a score or override financial inputs.
+Each request creates a new assessment with a UUID, score, risk band, decision,
+factors, ratios, and input/rules snapshots. There are no real lending decisions.
+
+- `GET /api/v1/customers/{customer_id}/credit-assessments/` lists paginated history.
+- `GET /api/v1/credit-assessments/{id}/` retrieves a saved assessment.
+- Customers can assess/read only their own profile. ADMIN and OPERATIONS can
+  assess/read all profiles. Results have no update or delete API.
+
+The `demo-v1` policy in `backend/credit/rules.py` starts at 300 points:
+
+| Factor | Points |
+| --- | --- |
+| Positive monthly income | +100 |
+| Monthly debt payments / income | ≤20%: +200; ≤40%: +125; ≤60%: +50; above: +0 |
+| Outstanding debt / monthly income | ≤1: +100; ≤3: +50; above: +0 |
+| Employed or self-employed | +75 |
+| Current employment duration | ≥24 months: +75; ≥6 months: +40; otherwise +0 |
+
+Score bands: **700–850 LOW / APPROVED**, **550–699 MEDIUM / REVIEW**,
+**300–549 HIGH / REJECTED**, subject to these decision overrides:
+
+- Zero income yields 300/HIGH/REJECTED, with unavailable ratios rather than division by zero.
+- Monthly debt payments above 60% of income force HIGH/REJECTED regardless of score.
+- Outstanding debt with no reported monthly payment prevents automatic demo approval
+  and adds a review explanation. Its score-based risk band is retained.
+
+Employment duration contributes only for current employment/self-employment.
+Ratios are compared before rounding and displayed to four decimal places. All
+amounts use the profile currency; no exchange-rate conversion or currency-specific
+income threshold is used. Repayment and transaction histories are explicitly
+unavailable, contribute no points and are not invented.
+
+The sample profile earns `300 + 100 + 200 + 100 + 75 + 75 = 850`.
+This is an illustrative points model, not a calibrated credit score. It does not
+consider a proposed loan payment, living expenses, verified income or credit-bureau
+data. APPROVED does not activate a loan. Save a new version whenever rules change;
+existing assessments retain their recorded rules and inputs.
+
+To test snapshot behaviour, assess your profile, PATCH its monthly income to `0`,
+then assess again. The new assessment should be rejected while the first stays
+unchanged. Restore the profile's demo inputs afterwards if desired.
 
 See [development decisions](docs/development.md) for architecture and next steps.

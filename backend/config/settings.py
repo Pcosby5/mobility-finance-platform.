@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "users.apps.UsersConfig",
     "customers.apps.CustomersConfig",
+    "credit.apps.CreditConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

@@ -87,6 +87,26 @@ directly to monthly income for a debt-to-income ratio. Repayment history will be
 derived from financial records later. Future credit assessments must snapshot the
 inputs and rules version so subsequent profile edits do not change past decisions.
 
+## Step 4: demo credit scoring
+
+`credit/rules.py` holds a frozen, versioned policy; `credit/scoring.py` evaluates
+plain inputs without database or provider dependencies. The service locks the
+customer row briefly and saves the outcome, input snapshot and full rules snapshot
+in one transaction. It does not mutate the customer profile. Each POST is a new
+assessment; retries may create multiple assessment records, without financial effects.
+
+Scoring uses dimensionless ratios to avoid comparing nominal amounts across
+currencies. The debt-to-income input is monthly repayment, not total outstanding
+debt. Thresholds use exact decimal comparisons, while display ratios are rounded.
+Zero income has an explicit rejection path. Missing monthly debt payments trigger
+review where the score alone would have approved. Missing repayment/transaction
+history is disclosed and not scored. No new dependencies were added.
+
+Saved results are read-only through the API. Ownership filters protect both
+customer history and direct assessment retrieval. Tests cover cutoff boundaries,
+zero income, high debt payments, missing history, reproducibility, unchanged old
+snapshots after profile edits, permissions and database constraints.
+
 ## Next small milestone
 
 Swagger is available at `/api/docs/`, with the schema at `/api/schema/`.
@@ -94,13 +114,13 @@ drf-spectacular generates OpenAPI from the serializers; explicit token responses
 describe rotation and logout accurately. Its sidecar package serves UI assets
 locally. Schema validation is part of verification.
 
-Test customer creation, listing and updates in Swagger, then build the rules-based
-credit assessment engine. Basic vehicles/devices follow before vehicle-linked loans.
+Test credit assessment creation and history in Swagger. Basic vehicles/devices
+follow before vehicle-linked loans.
 
 ## Remaining phases
 
-1. Credit assessments with explainable, versioned rules.
-2. Basic vehicles/devices, loans and repayment schedules.
+1. Basic vehicles/devices with ownership permissions.
+2. Loans and repayment schedules using saved credit assessments.
 3. Test payments, provider abstraction, verified/idempotent webhooks and Mock MoMo.
 4. Mosquitto, a separate MQTT consumer and GPS simulator.
 5. Telemetry history, geofences, alerts and retention.
