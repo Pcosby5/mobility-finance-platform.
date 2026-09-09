@@ -318,16 +318,20 @@ unchanged. The free-tier worker expects ``MQTT_BROKER_HOST`` from the
 dashboard (a public test broker for the demo; AWS IoT Core is the documented
 production evolution) because Render does not run brokers.
 
-## Next small milestone
+## Step 12: portfolio README
 
-Swagger is available at `/api/docs/`, with the schema at `/api/schema/`.
-drf-spectacular generates OpenAPI from the serializers; explicit token responses
-describe rotation and logout accurately. Its sidecar package serves UI assets
-locally. Schema validation is part of verification.
-
-Next complete the portfolio documentation: architecture diagrams, payment and
-MQTT flow explanations, production evolution (AWS IoT Core) and limitations in
-the README.
+The README was restructured from a running dev log into a portfolio front page:
+project overview, architecture diagram (payments and MQTT paths), technology
+stack with rationale, features, local and Docker setup, environment variables,
+the full API surface by module, payment and webhook flow explanations (signature
+verification, re-verification, the three idempotency layers), MQTT architecture
+(transport-agnostic ingest, DB-level dedupe), the GPS simulator, credit-scoring
+architecture, Render deployment, testing, production evolution (queue-backed
+webhook settlement, AWS IoT Core, time-series history), limitations and future
+improvements. The honesty statement — Paystack TEST mode, simulated MoMo,
+demonstration credit engine, local broker — sits at the top where a reviewer
+sees it first. Per-milestone reasoning stays in this document; the README links
+here as the decision log.
 
 ## Remaining phases
 
@@ -338,7 +342,7 @@ the README.
 6. ~~Docker and Compose.~~
 7. ~~Consolidated tests and GitHub Actions CI.~~
 8. ~~Render deployment.~~
-9. Portfolio demonstration, README and production evolution documentation.
+9. ~~Portfolio demonstration, README and production evolution documentation.~~
 
-Tests and documentation accompany every milestone. No paid cloud resources are
-needed for the local implementation.
+All planned phases are complete. Tests and documentation accompany every
+milestone. No paid cloud resources are needed for the local implementation.

@@ -1,103 +1,215 @@
 # Mobility Finance & Vehicle Telematics Platform
 
-A Django backend portfolio project connecting demo credit decisions, vehicle
-finance, test payments, and simulated GPS telemetry. We are building and verifying
-the backend incrementally, locally first.
+A production-shaped Django backend that connects **credit decisions → vehicle
+finance → payments → live GPS telemetry** in one modular monolith. Built as a
+portfolio demonstration of senior backend + FinTech + IoT engineering:
+JWT authentication, a versioned rules-based credit engine, a
+provider-abstracted payment layer with idempotent webhooks, an MQTT telemetry
+pipeline with a separate consumer process, geofencing and alerting — Dockerized,
+CI-checked, and deployable to Render from a Blueprint.
 
-Paystack will use test mode only. MTN MoMo will be simulated. Credit scoring will
-be a demonstration rules engine. No real financial transactions are processed.
-MQTT will initially use local Mosquitto; AWS IoT Core is a future architecture
-discussion, not an implemented integration.
+> **Scope and honesty statement**
+> - **Paystack is TEST mode only** (`sk_test_` / `pk_test_` keys). No real money moves.
+> - **MTN MoMo is a local simulator**, not a real MTN integration.
+> - **Credit scoring is a demonstration rules engine**, not a calibrated or regulated model.
+> - **MQTT runs on a local Mosquitto broker** for this version; AWS IoT Core is the
+>   documented production evolution, not an implemented integration.
+> - **No real financial transactions are processed anywhere in this project.**
 
-## Current milestone
+---
 
-Implemented: Django project, PostgreSQL configuration, custom user with customer,
-operations and admin roles, Django admin, a public liveness endpoint, initial
-migration, registration, JWT login/refresh/logout, a current-user API and
-authentication tests, customer profiles with ownership permissions, and Swagger/OpenAPI
-documentation, versioned demo credit assessments, and vehicle/device inventory.
-Loans, payments and MQTT/telemetry ingestion are still planned.
+## Contents
+
+1. [Why this project exists](#why-this-project-exists)
+2. [Architecture](#architecture)
+3. [Technology stack](#technology-stack)
+4. [Features](#features)
+5. [Local setup](#local-setup)
+6. [Docker setup](#docker-setup)
+7. [Environment variables](#environment-variables)
+8. [API documentation](#api-documentation)
+9. [Payment flow](#payment-flow)
+10. [Webhook architecture](#webhook-architecture)
+11. [MQTT architecture](#mqtt-architecture)
+12. [GPS simulator](#gps-simulator)
+13. [Credit scoring architecture](#credit-scoring-architecture)
+14. [Render deployment](#render-deployment)
+15. [Testing](#testing)
+16. [Production architecture](#production-architecture)
+17. [Limitations](#limitations)
+18. [Future improvements](#future-improvements)
+
+Engineering decisions and milestone history live in
+[docs/development.md](docs/development.md).
+
+---
+
+## Why this project exists
+
+Asset-financing businesses lend against vehicles and need to watch the asset.
+That single sentence spans four disciplines: underwriting (credit scoring),
+originations (loans), collections (payments and webhooks), and risk monitoring
+(telematics, geofences, alerts). Most tutorials cover one of these in
+isolation; this project integrates all of them behind one coherent REST API,
+with the correctness details that matter in finance — database constraints,
+row locking, idempotent settlement, audit trails — rather than the happy-path
+version.
+
+---
+
+## Architecture
+
+A **modular Django monolith**: one deployable backend, one database, apps
+split by responsibility. No microservices — service boundaries exist in the
+code (provider interfaces, transport-agnostic ingest, pure calculation
+modules) so individual pieces can be extracted later if they ever need to.
+
+```text
+                    ┌──────────────────────────────────────────────┐
+ GPS device /       │              Mosquitto broker                │
+ simulator          │   vehicles/{vehicle_id}/telemetry  (QoS 1)   │
+───────────────────▶└───────────────────────┬──────────────────────┘
+                                            │ wildcard subscribe
+                                            ▼
+                            ┌────────────────────────────────────┐
+                            │ run_mqtt_consumer (own process)    │
+                            │ validate → resolve device →        │
+                            │ persist + vehicle state + alerts   │
+                            └────────────────┬───────────────────┘
+                                             │
+┌────────┐   REST / JWT   ┌──────────────────▼───────────────────┐
+│ Client ├───────────────▶│ Django + DRF under gunicorn          │
+│(Swagger)│◀──────────────┤ users · customers · credit · loans   │
+└────────┘                │ payments · vehicles · telemetry      │
+      │                                   │                      │
+      │ POST /api/v1/webhooks/paystack/   │                      │
+      │ (HMAC-SHA512 verified)            ▼                      ▼
+      │                  ┌─────────────────────────┐   ┌────────────────┐
+      └─────────────────▶│ webhook handler          │   │ PostgreSQL 16  │
+                         │ re-verify w/ provider    ├──▶│ (source of     │
+                         │ idempotent settlement    │   │  truth)        │
+                         └────────────┬─────────────┘   └────────────────┘
+                                      │ REST (TEST mode only)
+                                      ▼
+                         ┌─────────────────────────┐
+                         │ Paystack TEST API  /    │
+                         │ Mock MoMo simulator     │
+                         └─────────────────────────┘
+```
 
 ```text
 backend/
-  manage.py
-  config/       # Settings, routing, ASGI/WSGI, liveness
-  users/        # Custom user, admin, migrations, tests
-  customers/    # UUID customer profiles, permissions, validation, tests
-  credit/       # Versioned rules, scoring, saved assessments, tests
-  vehicles/     # Vehicle/device inventory, assignment, permissions, tests
-requirements/   # Pinned runtime and development dependencies
-docs/           # Decisions and development milestones
+  config/       Settings, routing, ASGI/WSGI, health, OpenAPI
+  users/        Custom user, roles (ADMIN/CUSTOMER/OPERATIONS), JWT auth
+  customers/    Customer profiles (self-reported financials)
+  credit/       Versioned rules engine + saved, snapshot assessment records
+  loans/        Origination, schedules, activation, balances, guards
+  payments/     Provider abstraction, ledger, webhooks, idempotency, audit
+  vehicles/     Vehicle + device inventory, geofence fields
+  telemetry/    MQTT consumer, ingest pipeline, telemetry history,
+                geofence + alert evaluation, offline detection
+gps-simulator/  Standalone MQTT publisher (own Dockerfile, no DB access)
+mosquitto/      Local + container broker configs
+requirements/   Pinned runtime and dev dependencies
+docs/           Development decisions, milestone by milestone
 ```
+
+---
+
+## Technology stack
+
+| Layer | Choice | Why |
+| --- | --- | --- |
+| Language | Python 3.12+ | |
+| Framework | Django 5.2 + Django REST Framework | Batteries-included ORM, migrations, admin, and the framework I know best — business logic stays plain Python, testable without HTTP |
+| Database | PostgreSQL 16 | Partial unique constraints, CHECK constraints and `SELECT ... FOR UPDATE` are load-bearing here (idempotency, one-open-loan-per-vehicle, settlement) — SQLite would fake them |
+| Auth | Simple JWT (rotation + blacklist) | Short-lived access tokens, refresh rotation, server-side revocation |
+| Payments | Paystack REST (TEST) via `requests` | Thin provider class; no vendor SDK lock-in |
+| Messaging | paho-mqtt 2.1 over Mosquitto | Standard IoT transport; consumer is a separate process |
+| API docs | drf-spectacular + sidecar | Schema generated from serializers, validated in CI |
+| Serving | gunicorn + whitenoise | Production WSGI; static without a second server |
+| Infra | Docker Compose, GitHub Actions, Render | One command locally; push-to-deploy in the cloud |
+
+Every dependency is pinned in `requirements/base.txt`.
+
+---
+
+## Features
+
+**Identity & access** — registration, JWT login/refresh/logout with rotation and
+blacklisting, three platform roles (ADMIN / CUSTOMER / OPERATIONS), per-IP
+throttling on auth routes, object-level permissions and queryset scoping on
+every customer-owned resource.
+
+**Customer profiles** — self-reported demo financials (income, existing debt,
+monthly debt obligations, employment), one profile per account, immutable
+ownership, UUID public identifiers.
+
+**Credit scoring** — versioned rules engine producing score, risk band, decision
+and human-readable factors, with full input + rules snapshots saved per
+assessment so past decisions never change when inputs or rules change.
+
+**Loans** — origination against an approved credit assessment and a vehicle,
+flat simple-interest schedules with exact decimal rounding, activation with
+re-checked eligibility, DB-enforced one-open-loan-per-vehicle, balance/status
+pairing constraints, and vehicle guards (no reassignment/VIN change/retirement
+while an open loan exists).
+
+**Payments** — provider-agnostic initialization and verification, append-only
+payment ledger, signature-verified Paystack webhooks, idempotent settlement,
+webhook audit trail, and a mock MoMo simulator that exercises the real pipeline.
+
+**Vehicles & devices** — inventory with unique registration/VIN, one-device-per-
+vehicle assignment, connectivity and movement state derived only from telemetry.
+
+**Telemetry** — MQTT ingestion through a dedicated consumer, idempotent storage,
+read-only history API with time-range filtering, denormalized vehicle state.
+
+**Geofencing & alerts** — radius-based geofences on vehicles, geofence-exit /
+speeding / low-battery alerts evaluated inside the ingest transaction with
+auto-resolve, time-based offline detection, manual resolution API.
+
+**Platform** — OpenAPI schema generated and validated, health endpoint,
+Dockerized full stack, CI on every push, one-file Render Blueprint.
+
+---
 
 ## Local setup
 
-Requires Python 3.12+ and PostgreSQL 16. Run these commands from the repository root:
+Requires Python 3.12+ and a PostgreSQL 16 server. From the repository root:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements/dev.txt
 cp .env.example .env
-python -c 'import secrets; print(secrets.token_urlsafe(64))'
+python -c 'import secrets; print(secrets.token_urlsafe(64))'   # → DJANGO_SECRET_KEY
 ```
 
-Set `DJANGO_SECRET_KEY` in `.env` to the generated value. Set `DATABASE_URL` to
-your local PostgreSQL connection. `.env` is ignored by Git; `.env.example` contains
-only placeholders. Skip copying `.env` if your local configuration already exists.
+Set `DJANGO_SECRET_KEY` and `DATABASE_URL` in `.env`
+(e.g. `postgresql://user:password@127.0.0.1:5432/mobility_finance` — URL-encode
+special characters in the password). Grant the role `CREATEDB` so tests can
+create a temporary database; tests run against PostgreSQL, not SQLite.
 
-For an existing PostgreSQL installation, create a dedicated development role and
-database, and grant that role `CREATEDB` for Django's temporary test database.
-Use PostgreSQL for tests as well as development.
-
-The project uses an existing PostgreSQL server with a dedicated
-`mobility_finance` database. DBeaver is a database client: use its working host,
-port and credentials to configure Django. In DBeaver's SQL editor, create the
-database once if it does not already exist:
-
-```sql
-CREATE DATABASE mobility_finance;
-```
-
-Set `DATABASE_URL` using the role that owns the database:
-
-```dotenv
-DATABASE_URL=postgresql://YOUR_USER:YOUR_ENCODED_PASSWORD@YOUR_HOST:5432/mobility_finance
-```
-
-URL-encode special characters in the password, such as `@` as `%40`. DBeaver's
-separate password field uses the original password. If Django runs in WSL and
-PostgreSQL runs elsewhere, use an address reachable from WSL. The example host
-and port must be replaced with your actual connection settings.
-
-An earlier setup used a separate cluster under `.local/postgres/` on port 5433.
-That cluster is not required when connecting to an existing server. Local data
-and logs are ignored by Git.
-
-Start the API from `backend/`:
+Then from `backend/`:
 
 ```bash
-cd backend
 python manage.py migrate
-python manage.py createsuperuser
+python manage.py createsuperuser          # optional; no seeded credentials
 DEBUG=True python manage.py runserver 127.0.0.1:8000
 ```
 
-Open `http://127.0.0.1:8000/api/health/` for `{"status": "ok"}` or `/admin/`
-for Django admin. Liveness checks the HTTP application, not database readiness.
-The `createsuperuser` command is optional; no default admin credentials are seeded.
+Check `http://127.0.0.1:8000/api/health/` → `{"status": "ok"}`, then open
+Swagger. Notes: shell environment variables override `.env`; `DEBUG` defaults
+to false (secure cookies + HTTPS redirects), hence the explicit `DEBUG=True`
+for local HTTP.
 
-Existing shell environment variables override `.env`. `DEBUG` defaults to false,
-which enables HTTPS redirects and secure cookies. The explicit `DEBUG=True` above
-allows local HTTP even when the shell already defines `DEBUG=False`.
+---
 
-## Docker (full stack)
+## Docker setup
 
-Prefer the native setup above? It still works — Compose is optional.
-
-Docker brings up the whole demo — PostgreSQL 16, Mosquitto, the API under
-gunicorn, the telemetry consumer and (optionally) the GPS simulator — with one
-command from the repository root:
+Prefer the native setup above? It still works — Compose is optional. From the
+repository root:
 
 ```bash
 cp .env.example .env            # then set DJANGO_SECRET_KEY (required)
@@ -109,330 +221,278 @@ docker compose up --build       # add --profile demo to include the simulator
 | API / Swagger | http://localhost:8000/api/docs/ | `migrate` + `collectstatic` run automatically |
 | Health | http://localhost:8000/api/health/ | container healthcheck target |
 | Mosquitto | localhost:1883 | anonymous, demo only |
-| PostgreSQL | localhost:5433 | host port 5433 to avoid clashing with a native install; containers use `db:5432` |
+| PostgreSQL | localhost:5433 | host port 5433 avoids clashing with a native install; containers use `db:5432` |
 
-Shared settings come from the environment or the root `.env` (Compose reads it
-automatically): `DJANGO_SECRET_KEY` is required; `POSTGRES_DB`, `POSTGRES_USER`,
-`POSTGRES_PASSWORD` seed the database container; `PAYSTACK_SECRET_KEY`,
-`PAYSTACK_PUBLIC_KEY` and `MQTT_*` pass through to both web and consumer. The
-web and consumer services share one backend image; only their commands differ.
+One backend image serves two roles: the web service runs
+`migrate → collectstatic → gunicorn`, the `consumer` service runs
+`python manage.py run_mqtt_consumer`. Environment comes from the root `.env`
+(via a shared Compose anchor so web and consumer cannot drift); secrets are
+never baked into images. The consumer reconnects with bounded backoff, so
+broker startup order needs no orchestration.
 
-Drive a vehicle through the simulated broker by enabling the `demo` profile and
-giving the simulator a device id:
+Drive a vehicle through the stack:
 
 ```bash
 docker compose --profile demo up --build
-docker compose logs -f consumer   # watch telemetry being stored
+docker compose logs -f consumer      # watch telemetry being stored
 ```
 
-To stop and reset the database volume: `docker compose down` (add `-v` to
-remove data). The consumer reconnects to Mosquitto automatically, so broker
-startup order does not need orchestration.
+Reset with `docker compose down` (`-v` also removes data).
 
-## Verification
+---
 
-With the virtual environment activated, run Django checks **from `backend/`** so
-the default test discovery finds the apps:
+## Environment variables
 
-```bash
-python manage.py check
-python manage.py makemigrations --check --dry-run
-python manage.py test --verbosity 2
-```
+`.env.example` documents every variable with placeholders only; `.env` is
+git-ignored and never committed.
 
-Run linting from the repository root:
+| Variable | Purpose |
+| --- | --- |
+| `DJANGO_SECRET_KEY` | Required. Django signing key. |
+| `DEBUG` | Defaults to false. Set `DEBUG=True` for local HTTP. |
+| `ALLOWED_HOSTS` | Comma-separated hosts (production sets this in Render). |
+| `DATABASE_URL` | PostgreSQL connection string. |
+| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | Compose database seeding only. |
+| `PAYSTACK_SECRET_KEY` | **TEST** secret key (`sk_test_…`). |
+| `PAYSTACK_PUBLIC_KEY` | **TEST** public key (`pk_test_…`). |
+| `MOCK_MOMO_WEBHOOK_SECRET` | Signs the local MoMo simulator's callbacks. |
+| `MQTT_BROKER_HOST` / `MQTT_BROKER_PORT` | Mosquitto address for consumer and simulator. |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | Optional broker credentials. |
 
-```bash
-ruff check backend
-ruff format --check backend
-python -m pip check
-```
+---
 
-Tests cover customer defaults, password hashing, the database role constraint,
-admin access, public liveness, registration validation, privilege escalation,
-token expiry/rotation/revocation, inactive/deleted users and request throttling.
-Test requests use HTTPS to work with the secure settings defaults.
+## API documentation
 
-## Authentication API
+Interactive Swagger UI: **`/api/docs/`** — generated schema: `/api/schema/`
+(validate with `python manage.py spectacular --validate --fail-on-warn`).
+Swagger assets are served locally by `drf-spectacular-sidecar`; no CDN needed.
+Docs are public; every data route requires JWT. Click **Authorize** and paste
+the access token (without `Bearer` — Swagger adds it).
 
-### Test in Swagger
+All application models use UUIDv4 primary keys exposed as UUID strings;
+detail routes use Django's `<uuid:pk>` converter.
 
-Start the local server from `backend/` with `DEBUG=True python manage.py runserver`.
-Open **http://127.0.0.1:8000/api/docs/**. The OpenAPI schema is at `/api/schema/`.
+### Authentication — `/api/v1/auth/`
 
-1. Expand `POST /api/v1/auth/register/`, click **Try it out**, enter a demo user,
-   then **Execute**. A successful registration returns 201.
-2. Execute `POST /api/v1/auth/login/` with that username and password.
-3. Copy the returned **access** token. Click **Authorize** at the top and paste
-   only the token, without `Bearer`. Swagger adds that prefix automatically.
-4. Execute `GET /api/v1/auth/me/` to see your profile.
-5. Test `refresh/` by submitting the refresh token in the JSON body. Save the new
-   pair and update **Authorize** with the new access token.
-6. Test `logout/` with the latest refresh token. Reusing it at `refresh/` should
-   return 401. Use Swagger's **Authorize → Logout** to clear the UI's access token.
-
-Swagger does not automatically log you in or replace its token after a refresh.
-Its Authorize dialog's Logout button only clears the token from the UI; the API
-logout endpoint revokes the refresh token on the server. Access tokens expire in
-five minutes. Reloading the page clears Swagger authorization.
-
-Swagger UI assets are served locally through `drf-spectacular-sidecar`; no CDN
-connection is required. Docs are public for the demo; protected API routes still
-require JWT. `drf-spectacular` generates the schema from the DRF endpoints.
-
-Validate the schema from `backend/`:
-
-```bash
-python manage.py spectacular --validate --fail-on-warn --file /tmp/mobility-openapi.yaml
-```
-
-### Endpoint reference
-
-Application models use UUIDv4 primary keys. Registration and `/me/` return `id`
-as a UUID string, and Swagger describes it as `type: string, format: uuid`.
-JWTs identify the user with the `user_uuid` claim. UUIDs do not replace ownership
-checks or permissions.
-
-Upgrading from the initial integer-ID foundation runs migration `users.0002_user_uuid`.
-It preserves accounts, password hashes and related records, and clears old Django
-sessions. Existing JWTs require a fresh login. This PostgreSQL data migration is
-atomic and forward-only; take a database backup before applying it. It locks the
-user table and referencing tables during conversion, so run it during a maintenance
-window if the database is in use.
-
-All routes below are under `/api/v1/auth/`. Login uses a username; email is contact
-information and is not verified or unique in this milestone.
-
-| Method | Route | Request / result |
+| Method | Route | Behaviour |
 | --- | --- | --- |
-| POST | `register/` | Username, email, password; optional first/last name. Creates a CUSTOMER (201). |
-| POST | `login/` | Username and password; returns `access` and `refresh` (200). |
-| POST | `refresh/` | `refresh`; returns a new access/refresh pair (200). |
-| POST | `logout/` | `refresh`; revokes that refresh token and returns `{}` (200). |
-| GET | `me/` | Bearer access token; returns the current user's profile (200). |
+| POST | `register/` | Creates a CUSTOMER account; role/staff fields rejected. |
+| POST | `login/` | Returns `access` (5 min) + `refresh` (1 day, rotates on use). |
+| POST | `refresh/` | Rotation; old refresh token becomes unusable. |
+| POST | `logout/` | Revokes the supplied refresh token (blacklist). |
+| GET | `me/` | Current user's profile. |
 
-For example, with the local server running, register a demo account:
+### Customers — `/api/v1/customers/`
 
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/auth/register/ \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"demo_customer","email":"demo@example.com","password":"Demo-only!CorrectHorse7492"}'
-```
-
-Log in with the same username and password:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/v1/auth/login/ \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"demo_customer","password":"Demo-only!CorrectHorse7492"}'
-```
-
-Use the returned access token to fetch your profile:
-
-```bash
-curl http://127.0.0.1:8000/api/v1/auth/me/ \
-  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN'
-```
-
-Send `{"refresh":"YOUR_REFRESH_TOKEN"}` as JSON to `refresh/` or `logout/`.
-Those endpoints use possession of the refresh token and do not require a live
-access token. After refreshing, replace both stored tokens. Invalid, expired or
-blacklisted tokens return 401; missing fields return 400. Logging out twice with
-the same token returns 401 on the second request.
-
-Access tokens last five minutes; refresh tokens last one day and rotate on use.
-Logout revokes the supplied refresh token only. Previously issued access tokens
-remain usable until expiry; clients should discard both tokens on logout. Other
-login sessions remain active. Deactivated accounts are rejected on access and
-refresh. Password changes do not revoke existing tokens in this milestone.
-
-Registration rejects role/staff fields and applies Django's password validators.
-API authentication uses JWT; Django admin continues to use session authentication.
-Auth POST routes share a basic per-IP limit of 20 requests/minute. The current
-in-memory cache makes this a per-process development limit, not distributed
-brute-force protection. Clients should serialize refresh requests: concurrent
-rotation is not guaranteed to be single-use by the library's blacklist workflow.
-
-Periodically remove expired token records (from `backend/`):
-
-```bash
-python manage.py flushexpiredtokens
-```
-
-Schedule this daily when deploying. Rotation and revocation use Simple JWT's
-[documented blacklist app](https://django-rest-framework-simplejwt.readthedocs.io/en/stable/blacklist_app.html).
-
-## Customer profiles
-
-Log in and authorize in Swagger, then open the **Customers** section.
-
-| Method | Endpoint | Behaviour |
+| Method | Route | Access |
 | --- | --- | --- |
-| GET | `/api/v1/customers/` | Paginated profiles visible to your account |
-| POST | `/api/v1/customers/` | Create one profile per customer account |
-| GET | `/api/v1/customers/{id}/` | Read a profile by its UUID |
-| PATCH | `/api/v1/customers/{id}/` | Update selected fields; ownership is immutable |
+| GET | `/` | Customers: own profile. ADMIN/OPERATIONS: all. |
+| POST | `/` | One profile per account; admins supply `user`. |
+| GET / PATCH | `/{id}/` | Ownership immutable; delete/PUT not exposed. |
 
-While logged in as `demo_customer`, execute POST with the Swagger example:
+### Credit — `/api/v1/customers/{customer_id}/credit-assessments/` and `/api/v1/credit-assessments/{id}/`
 
-```json
-{
-  "full_name": "Demo Customer",
-  "phone": "+233201234567",
-  "employment_status": "EMPLOYED",
-  "employment_duration_months": 24,
-  "currency": "GHS",
-  "monthly_income": "6500.00",
-  "existing_debt": "2000.00",
-  "monthly_debt_repayment": "250.00"
-}
+POST assesses the profile (inputs come from saved data; callers cannot submit
+a score), GET lists paginated history / retrieves one saved assessment.
+Read-only results; customers see only their own.
+
+### Loans — `/api/v1/loans/`
+
+| Method | Route | Behaviour |
+| --- | --- | --- |
+| GET / POST | `/` | List (scoped) / originate against assessment + vehicle. |
+| GET | `/{id}/` | Loan detail. |
+| GET | `/{id}/installments/` | Read-only repayment schedule. |
+| POST | `/{id}/activate/` | Re-checks eligibility/affordability, sets balance to total repayable. |
+| POST | `/{id}/cancel/` | Cancels a PENDING loan. |
+
+### Payments — `/api/v1/...`
+
+| Method | Route | Behaviour |
+| --- | --- | --- |
+| POST | `payments/initialize/` | Start a payment for a loan (`PAYSTACK` or `MOCK_MOMO`). |
+| GET | `payments/{reference}/verify/` | Pull latest provider state; settles if terminal. |
+| GET | `payments/` | Payment ledger (scoped). |
+| GET | `payments/webhook-events/` | Audit trail of every webhook delivery. |
+| POST | `webhooks/paystack/` | Public; HMAC-SHA512 signature-verified. |
+| POST | `webhooks/momo/simulate/` | Dev trigger; staff **session** auth only (JWT deliberately refused). |
+
+### Vehicles & devices — `/api/v1/...`
+
+| Method | Route | Access |
+| --- | --- | --- |
+| GET | `vehicles/` | Customers: assigned vehicles; operations/admin: all. |
+| POST / PATCH | `vehicles/…` | Operations/admin only. |
+| GET / POST / PATCH | `devices/…` | Operations/admin only; one device per vehicle. |
+| GET | `vehicles/{id}/telemetry/` | Paginated history; `start`/`end` ISO filters; `ordering`. |
+
+### Alerts — `/api/v1/alerts/`
+
+GET with `vehicle`, `type`, `resolved` filters (customers scoped to their
+vehicles); `POST /alerts/{id}/resolve/` for operations/admin.
+
+### Platform
+
+`GET /api/health/` — public liveness (HTTP app, not DB readiness).
+
+---
+
+## Payment flow
+
+The system depends on a small `PaymentProvider` interface — `create_payment`,
+`verify_payment`, `verify_webhook_signature` — never on Paystack directly.
+`get_provider(name)` is the only factory, so adding a provider touches one
+file. Paystack amounts are handled in subunits (pesewas/kobo) per their API.
+
+```text
+Django                    initialize transaction (TEST mode)
+  │  POST /api/v1/payments/initialize/
+  │    → Payment row created PENDING (append-only ledger)
+  │    → provider returns checkout_url
+  ▼
+Test checkout page ──customer pays with test card──▶ Paystack
+  │
+  ▼
+Paystack webhook ──POST /api/v1/webhooks/paystack/──▶ Django
+  │  1. verify HMAC-SHA512 signature        (reject → 401 + audited)
+  │  2. find payment by reference           (unknown → audited, no action)
+  │  3. RE-VERIFY with GET /transaction/verify   (payload never trusted)
+  │  4. cross-check amount + currency       (mismatch → FAILED, no credit)
+  │  5. conditional update WHERE status='PENDING'  (idempotent winner)
+  │  6. lock loan row → update balance/status → commit
+  ▼
+Loan balance reduced (or loan COMPLETED at full repayment)
 ```
 
-The response returns a new **profile UUID** in `id` and your **account UUID** in
-`user`. Use the profile UUID for customer detail routes. These are different IDs.
-For PATCH, send only fields to change, for example `{"monthly_income":"7000.00"}`.
+Verification (`GET /api/v1/payments/{reference}/verify/`) runs the same
+settlement path, so a missed webhook self-heals on the next verification.
 
-- CUSTOMER accounts create, list, read and update only their own profile. Omit
-  `user` when creating your own profile. Access to another profile returns 404.
-- ADMIN and OPERATIONS roles can list, read and update all profiles. On creation
-  they must supply `user` with an existing active CUSTOMER account UUID.
-- A second profile for the same account returns 400. Unknown/read-only fields are
-  rejected, and profile ownership cannot be changed. Delete and PUT are not exposed.
-- Email comes from the user account and is read-only here. `full_name` is the
-  customer's declared profile name; it does not change the account's name fields.
-- Amounts are decimal strings in the selected currency (GHS, NGN or USD). These
-  are self-reported demo inputs, not verified financial data. No currency conversion
-  is performed. If changing the currency, resubmit amounts in the new currency.
-- `existing_debt` is a total outstanding balance. `monthly_debt_repayment` is a
-  monthly obligation; it is the relevant input for future debt-to-income calculations.
-  Zero income is accepted and must be handled explicitly by the future scoring engine.
-- Repayment history will come from loan/payment records; customers cannot submit it
-  through this profile endpoint.
+---
 
-Platform roles are separate from Django staff access. A Django superuser with role
-CUSTOMER has customer-level API scope; assign the platform role ADMIN or OPERATIONS
-through the existing user admin when testing those workflows.
+## Webhook architecture
 
-## Demo credit assessments
+Webhooks are unauthenticated by design (providers cannot hold JWTs) and are
+protected by **signature verification** instead: Paystack signs with
+HMAC-SHA512 over the raw request body using the secret key; the handler
+compares with `hmac.compare_digest` (constant-time) and rejects anything else
+with 401. Payloads are never trusted for the outcome — they only *point at* a
+transaction; step 3 above re-verifies with the provider's API before any
+balance moves, so a forged or replayed payload cannot create money.
 
-In Swagger's **Credit** section, use your customer **profile UUID** and execute
-`POST /api/v1/customers/{customer_id}/credit-assessments/` with `{}`. Inputs come
-from the saved profile; callers cannot submit a score or override financial inputs.
-Each request creates a new assessment with a UUID, score, risk band, decision,
-factors, ratios, and input/rules snapshots. There are no real lending decisions.
+**Idempotency** — duplicate deliveries are guaranteed, not exceptional
+(QoS/retries on the provider side). Three layers prevent double effects:
 
-- `GET /api/v1/customers/{customer_id}/credit-assessments/` lists paginated history.
-- `GET /api/v1/credit-assessments/{id}/` retrieves a saved assessment.
-- Customers can assess/read only their own profile. ADMIN and OPERATIONS can
-  assess/read all profiles. Results have no update or delete API.
+1. **Conditional terminal transitions**: settlement updates
+   `Payment … WHERE status = 'PENDING'`; under concurrent redelivery exactly
+   one request wins the row, the loser observes "already processed".
+2. **Loan row lock**: status + outstanding balance change atomically in one
+   transaction — no partial updates, ever.
+3. **Audit trail**: every delivery (processed, duplicate, rejected, unknown)
+   is recorded in `WebhookEvent` and browsable at
+   `GET /api/v1/payments/webhook-events/`.
 
-The `demo-v1` policy in `backend/credit/rules.py` starts at 300 points:
+Dedicated tests cover duplicate webhook delivery and assert that the second
+delivery produces **no** financial side effect.
+
+---
+
+## MQTT architecture
+
+Topics: `vehicles/{vehicle_id}/telemetry` (QoS 1), published by devices or the
+simulator. The consumer **is a separate long-lived process**
+(`python manage.py run_mqtt_consumer`) — HTTP workers never touch the broker,
+so a broker outage cannot affect API latency and a web redeploy cannot drop
+the subscription. The consumer subscribes with a wildcard, reconnects with
+bounded backoff, and shuts down cleanly on SIGTERM/Ctrl+C.
+
+The ingest pipeline (`telemetry/services.py`) is transport-agnostic — the
+broker adapter is thin, and a future AWS IoT Core rule or REST ingestion
+endpoint could call the same functions:
+
+- `parse_payload` — one place for validation: ranges, types, clock-skew rejection.
+- `resolve_vehicle` — the payload's `vehicle_id` is **never trusted**; the
+  registered Device mapping is authoritative, so a misconfigured device cannot
+  write into another vehicle's history.
+- `ingest_telemetry` — record insert + denormalized vehicle state
+  (position, ONLINE, MOVING/PARKED at 1 km/h) in one transaction under a row
+  lock, with alert evaluation inside the same transaction.
+
+**Idempotency at the database**: a unique `(device_id, recorded_at)`
+constraint collapses QoS 1 redeliveries and consumer restarts into one stored
+record — the transport layer cannot be trusted to deduplicate.
+
+History is exposed read-only at `GET /api/v1/vehicles/{id}/telemetry/` with
+pagination, `start`/`end` ISO range filters and `ordering`; invalid filters
+fail loudly (400) rather than silently returning everything.
+
+---
+
+## GPS simulator
+
+`gps-simulator/simulator.py` is a standalone script with its own requirements
+(just paho-mqtt) and **zero database access** — the backend is the only writer.
+It random-walks a virtual vehicle (heading drift, speed noise, brief stops,
+battery drain) and publishes spec-shaped payloads until stopped:
+
+```bash
+.venv/bin/python gps-simulator/simulator.py \
+  --device-id GPS-001 --vehicle-id <vehicle-uuid> --interval 2.0
+# or: docker compose --profile demo up simulator
+```
+
+All configuration comes from flags or environment variables: `MQTT_BROKER_HOST`,
+`MQTT_BROKER_PORT`, `GPS_DEVICE_ID`, `GPS_VEHICLE_ID`, `GPS_START_LAT/LON`
+(default Accra), `GPS_INTERVAL_SECONDS`, `GPS_SPEED_KPH`.
+
+The full demo loop: vehicle moving → MQTT message → consumer → database →
+`GET /api/v1/vehicles/{id}/` shows updated position and `ONLINE`, history
+accumulates at `/telemetry/`, alerts appear at `/api/v1/alerts/` when the walk
+crosses a geofence or battery threshold.
+
+---
+
+## Credit scoring architecture
+
+Two deliberately separate pieces:
+
+- `credit/rules.py` — a **frozen, versioned policy** (`demo-v1`). Changing
+  rules means saving a new version; existing assessments keep their recorded
+  rules.
+- `credit/scoring.py` — evaluates plain inputs with no database or provider
+  dependencies, so scoring is unit-testable in isolation.
+
+`demo-v1` starts at 300 points:
 
 | Factor | Points |
 | --- | --- |
 | Positive monthly income | +100 |
-| Monthly debt payments / income | ≤20%: +200; ≤40%: +125; ≤60%: +50; above: +0 |
-| Outstanding debt / monthly income | ≤1: +100; ≤3: +50; above: +0 |
+| Debt payments / income | ≤20%: +200 · ≤40%: +125 · ≤60%: +50 · above: +0 |
+| Outstanding debt / monthly income | ≤1: +100 · ≤3: +50 · above: +0 |
 | Employed or self-employed | +75 |
-| Current employment duration | ≥24 months: +75; ≥6 months: +40; otherwise +0 |
+| Employment duration (current) | ≥24 mo: +75 · ≥6 mo: +40 |
 
-Score bands: **700–850 LOW / APPROVED**, **550–699 MEDIUM / REVIEW**,
-**300–549 HIGH / REJECTED**, subject to these decision overrides:
+Bands: **700–850 LOW/APPROVED · 550–699 MEDIUM/REVIEW · 300–549 HIGH/REJECTED**,
+with explicit overrides: zero income rejects outright (no division by zero);
+debt payments above 60% of income force rejection regardless of score;
+outstanding debt with no reported monthly obligation prevents auto-approval and
+adds a review reason. Ratios are dimensionless, so currencies never compare
+across amounts; comparisons use exact decimals before display rounding.
 
-- Zero income yields 300/HIGH/REJECTED, with unavailable ratios rather than division by zero.
-- Monthly debt payments above 60% of income force HIGH/REJECTED regardless of score.
-- Outstanding debt with no reported monthly payment prevents automatic demo approval
-  and adds a review explanation. Its score-based risk band is retained.
+The service locks the customer row briefly and saves score, decision, factors,
+**input snapshot** and **rules snapshot** in one transaction — edit the profile
+afterwards and past assessments stay byte-identical (a tested guarantee).
+Each POST creates a new assessment; results are read-only through the API.
 
-Employment duration contributes only for current employment/self-employment.
-Ratios are compared before rounding and displayed to four decimal places. All
-amounts use the profile currency; no exchange-rate conversion or currency-specific
-income threshold is used. Repayment and transaction histories are explicitly
-unavailable, contribute no points and are not invented.
+This is an illustrative points model, not a calibrated credit score: no bureau
+data, verified income, or loan-affordability input. APPROVED does not activate
+a loan — origination re-checks eligibility separately.
 
-The sample profile earns `300 + 100 + 200 + 100 + 75 + 75 = 850`.
-This is an illustrative points model, not a calibrated credit score. It does not
-consider a proposed loan payment, living expenses, verified income or credit-bureau
-data. APPROVED does not activate a loan. Save a new version whenever rules change;
-existing assessments retain their recorded rules and inputs.
+---
 
-To test snapshot behaviour, assess your profile, PATCH its monthly income to `0`,
-then assess again. The new assessment should be rejected while the first stays
-unchanged. Restore the profile's demo inputs afterwards if desired.
+## Render deployment
 
-## Vehicles and devices
-
-Swagger now includes **Vehicles** and **Devices**. Both use UUID primary keys.
-
-| Method | Endpoint | Access |
-| --- | --- | --- |
-| GET | `/api/v1/vehicles/` | Customers: assigned vehicles; operations/admin: all |
-| POST | `/api/v1/vehicles/` | Operations/admin only |
-| GET | `/api/v1/vehicles/{id}/` | Assigned customer or operations/admin |
-| PATCH | `/api/v1/vehicles/{id}/` | Operations/admin only |
-| GET, POST | `/api/v1/devices/` | Operations/admin only |
-| GET, PATCH | `/api/v1/devices/{id}/` | Operations/admin only |
-
-Use a separate operations account to test creation. Log in to Django admin with
-a superuser, add a user and set its **Platform → Role** to **Operations**. Keep
-`demo_customer` as CUSTOMER. An operations API account does not need `is_staff`.
-Then log in to Swagger with the operations account and replace its Authorize token.
-
-Create a vehicle, setting `customer` to the **customer profile UUID**, not the
-user account UUID. Omit it for an unassigned vehicle:
-
-```json
-{
-  "registration_number": "DEMO-001",
-  "vin": "1HGCM82633A004352",
-  "make": "Honda",
-  "model_name": "Accord",
-  "year": 2003,
-  "status": "ACTIVE"
-}
-```
-
-PATCH `{"customer":"YOUR_CUSTOMER_PROFILE_UUID"}` to assign a vehicle, or
-`{"customer":null}` to unassign it. Create a device with a unique, stable label:
-
-```json
-{
-  "device_id": "GPS-001",
-  "enabled": true
-}
-```
-
-PATCH the device with `{"vehicle":"YOUR_VEHICLE_UUID"}` to link it. Each vehicle
-can have one device; multiple unassigned devices are allowed. Detach a device with
-`{"vehicle":null}` before replacing it. `{"enabled":false}` marks it disabled but
-does not detach it. `device_id` is immutable and is a case-sensitive routing label,
-not an authentication credential. MQTT will enforce enabled state in a later phase.
-
-Switch Swagger authorization back to the customer account: it should see only
-assigned vehicles, including a read-only device summary. Vehicle writes and device
-management return 403; another customer's vehicle returns 404. Reassignment removes
-the previous customer's access. Delete and PUT are not exposed.
-
-Registration and VIN are trimmed, uppercased and unique. VIN validation checks
-format (17 characters, excluding I/O/Q), not manufacturer records or ownership.
-Supported model years are 1900 through next year.
-
-Vehicle `status` describes lifecycle: ACTIVE, MAINTENANCE or RETIRED. Connectivity
-(UNKNOWN/ONLINE/OFFLINE) and movement (UNKNOWN/MOVING/PARKED) are separate read-only
-fields. Both start UNKNOWN, with null GPS coordinates and telemetry timestamp.
-No simulator or MQTT consumer runs yet. Later telemetry ingestion will update these
-fields; REST clients cannot forge them through inventory endpoints.
-
-This milestone permits operations/admin reassignment. Loan-linked reassignment
-rules and historical telemetry ownership will be addressed when those modules arrive.
-
-## Deploying to Render
-
-The repository ships a [Render Blueprint](render.yaml): connect the GitHub repo
-at dashboard.render.com, choose **New → Blueprint Instance**, and Render creates
-the services below from that file. `build.sh` runs install + migrate +
-collectstatic and fails loudly (`set -euo pipefail`) so a broken release never
-replaces a working one.
+The repository ships a [Render Blueprint](render.yaml): connect the repo at
+dashboard.render.com → **New → Blueprint Instance** → Render creates:
 
 | Service | Type | Start command |
 | --- | --- | --- |
@@ -440,31 +500,123 @@ replaces a working one.
 | `mobility-finance-api` | web | gunicorn on `$PORT`, health-checked at `/api/health/` |
 | `mobility-finance-consumer` | worker | `python manage.py run_mqtt_consumer` |
 
-Secrets never live in the repository: `DJANGO_SECRET_KEY` and
-`MOCK_MOMO_WEBHOOK_SECRET` are generated by Render (`generateValue`), while
-`PAYSTACK_SECRET_KEY` / `PAYSTACK_PUBLIC_KEY` are declared `sync: false` —
-Render prompts you to paste your **TEST** keys on first deploy. `DATABASE_URL`
-is wired to the database instance automatically. Set `MQTT_BROKER_HOST` (and
-optionally `MQTT_BROKER_PORT`) in the dashboard for the worker: Render does not
-host MQTT brokers, so point it at a public test broker for the demo — the
-production path (AWS IoT Core) is described below. The worker's build skips
-migrations on purpose; the web build owns them so concurrent deploys cannot
-race schema changes.
+`build.sh` (install → migrate → collectstatic) runs with `set -euo pipefail`
+so a broken release never replaces a working one, and owns migrations
+exclusively — the worker's build skips them so concurrent deploys cannot race
+DDL. Settings trust Render's TLS-terminating proxy
+(`SECURE_PROXY_SSL_HEADER`), which is what makes `SECURE_SSL_REDIRECT` safe
+behind the proxy. Secrets are dashboard-only: Paystack keys are declared
+`sync: false` (Render prompts on first deploy); runtime secrets are
+`generateValue`. `autoDeploy: true` redeploys on every push.
 
 After the first deploy:
 
-1. Open `https://<your-service>.onrender.com/api/health/` → `{"status": "ok"}`.
-2. In the Render dashboard, open the web service's **Shell** and run
-   `cd backend && python manage.py createsuperuser` for admin access.
-3. Paystack dashboard → Settings → API Keys & Webhooks → set **Test Webhook
-   URL** to `https://<your-service>.onrender.com/api/v1/webhooks/paystack/`.
-   With a deployed URL you no longer need ngrok for webhook testing.
-4. Push to deploy: `autoDeploy: true` redeploys on every commit to the branch.
+1. Verify `https://<service>.onrender.com/api/health/`.
+2. Web service **Shell** → `cd backend && python manage.py createsuperuser`.
+3. Set `MQTT_BROKER_HOST` for the worker (a public test broker for the demo —
+   Render does not host brokers; AWS IoT Core is the production path below).
+4. Paystack dashboard → **Test Webhook URL** =
+   `https://<service>.onrender.com/api/v1/webhooks/paystack/` — the deployed
+   URL replaces ngrok for webhook testing.
 
-Free-tier services sleep after inactivity, so the first request after a pause
-is slow (cold start); the free worker also restarts periodically, which the
-consumer handles by design (bounded reconnect backoff). Set real brokers,
-retained telemetry storage and Celery before treating any of this as more than
-a demo.
+Free-tier services sleep after inactivity (slow first request) and the free
+worker restarts periodically, which the consumer handles by design.
 
-See [development decisions](docs/development.md) for architecture and next steps.
+---
+
+## Testing
+
+From `backend/`:
+
+```bash
+python manage.py check
+python manage.py makemigrations --check --dry-run    # no uncommitted model changes
+python manage.py test --parallel                     # full suite (~150 tests)
+python manage.py spectacular --validate --fail-on-warn
+```
+
+From the repository root: `ruff check backend gps-simulator` and
+`ruff format --check backend`.
+
+Coverage of the areas that matter: JWT lifecycle (rotation, revocation,
+expiry, privilege escalation), credit cutoff boundaries and snapshot
+immutability, interest/rounding and month-end clamping, eligibility and
+affordability rejections, **duplicate webhook delivery with no double
+application**, Paystack signature rejection, MoMo simulation, loan balance
+updates under full and partial repayment, telemetry idempotent ingestion,
+device-mismatch rejection, geofence detection, alert lifecycle, offline
+semantics, and API scoping (a customer's 404 on another customer's data).
+
+CI (`.github/workflows/ci.yml`) runs the same gates on every push/PR against
+a **real PostgreSQL 16 service container** — the same engine as development
+and production, so partial unique constraints, CHECK constraints and row
+locking behave in CI exactly as locally.
+
+---
+
+## Production architecture
+
+The portfolio version runs on one cheap Render web service, one worker, and
+Mosquitto. The documented production evolution:
+
+**Payments** — same provider interface; production adds a queue (Celery +
+Redis) between webhook receipt and settlement so provider outages during
+re-verification retry safely, plus dead-letter handling and reconciliation
+jobs comparing the ledger against provider settlement reports.
+
+**Telemetry / IoT** — the local chain is:
+
+```text
+GPS simulator → Mosquitto (local) → run_mqtt_consumer → PostgreSQL
+```
+
+Production replaces the broker, not the pipeline:
+
+```text
+GPS device → AWS IoT Core (MQTT, per-device certs) → IoT Rule
+           → backend ingest (same services.py) → PostgreSQL
+```
+
+AWS IoT Core adds what a demo broker lacks: mutual-TLS device identity,
+fine-grained topic authorization (a device may publish only its own topic),
+fleet-scale managed MQTT, and rules routing. The consumer's transport-agnostic
+services are the migration seam. High-volume history would move to a
+time-series store (TimescaleDB) with PostgreSQL keeping recent data.
+
+**Scaling** — the monolith scales horizontally behind a load balancer
+(stateless views); Postgres gets a read replica for history queries; Celery
+beat owns scheduled work (offline checks, token cleanup) instead of cron;
+S3/static CDN in front of whitenoise; Sentry + structured logging.
+
+---
+
+## Limitations
+
+- **No real financial transactions.** Paystack TEST mode only; MoMo is a local
+  simulator; the credit engine is illustrative, not a regulated decisioning model.
+- **Email is contact information** — not verified, not unique, no password
+  recovery yet; username is the login identity.
+- **In-memory rate limiting** — per-process only, not distributed protection.
+- **Telemetry retention is unlimited** — a demo database, not a retention policy.
+- **MQTT broker is anonymous and local/containerized** — device `device_id` is
+  a routing label, not a credential; broker auth/TLS is out of demo scope.
+- **Free-tier realities** — sleeping services, periodic worker restarts.
+- **No frontend** — the API is the product; Swagger is the client.
+- **Deletion APIs intentionally absent** — financial history is PROTECTed.
+
+## Future improvements
+
+- Celery + Redis: webhook settlement retries, scheduled offline checks,
+  token cleanup, notification fan-out.
+- Payment reconciliation job and provider settlement reports.
+- Per-device MQTT credentials + broker TLS; AWS IoT Core integration.
+- TimescaleDB-backed telemetry history with downsampling and retention.
+- Email verification, password reset, and audit logging of staff actions.
+- Simple Vue/React dashboard over the existing API (loosely coupled by design).
+- Amortizing (reducing-balance) interest as a second versioned calculation.
+
+---
+
+See [docs/development.md](docs/development.md) for the decision log behind
+every milestone, including the reasoning for each dependency, constraint, and
+trade-off above.
