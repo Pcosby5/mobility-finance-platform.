@@ -1,3 +1,4 @@
+from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -22,6 +23,9 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
+    "rest_framework_simplejwt.token_blacklist",
     "users.apps.UsersConfig",
 ]
 MIDDLEWARE = [
@@ -66,10 +70,41 @@ AUTH_PASSWORD_VALIDATORS = [
     ]
 ]
 REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
-    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_THROTTLE_RATES": {"auth": "20/min"},
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Mobility Finance API",
+    "DESCRIPTION": (
+        "Demo mobility finance and vehicle telematics backend. "
+        "Register, log in, then paste the access token into Authorize. "
+        "No real financial transactions are processed."
+    ),
+    "VERSION": "0.1.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
+    "SERVE_AUTHENTICATION": [],
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "SWAGGER_UI_SETTINGS": {"deepLinking": True, "persistAuthorization": False},
+}
+
+SIMPLE_JWT = {
+    # A new claim rejects pre-UUID access tokens and requires a fresh login.
+    "USER_ID_CLAIM": "user_uuid",
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": False,
 }
 
 LANGUAGE_CODE = "en-us"

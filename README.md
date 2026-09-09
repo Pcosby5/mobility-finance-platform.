@@ -13,8 +13,9 @@ discussion, not an implemented integration.
 
 Implemented: Django project, PostgreSQL configuration, custom user with customer,
 operations and admin roles, Django admin, a public liveness endpoint, initial
-migration, and foundation tests. Registration, JWT, customer APIs, payments, and
-IoT features are still planned.
+migration, registration, JWT login/refresh/logout, a current-user API and
+authentication tests, and Swagger/OpenAPI documentation. Customer APIs, payments and IoT
+features are still planned.
 
 ```text
 backend/
@@ -106,7 +107,117 @@ python -m pip check
 ```
 
 Tests cover customer defaults, password hashing, the database role constraint,
-operations users being denied admin access, and public liveness. Test requests use
-HTTPS to work with the secure settings defaults.
+admin access, public liveness, registration validation, privilege escalation,
+token expiry/rotation/revocation, inactive/deleted users and request throttling.
+Test requests use HTTPS to work with the secure settings defaults.
+
+## Authentication API
+
+### Test in Swagger
+
+Start the local server from `backend/` with `DEBUG=True python manage.py runserver`.
+Open **http://127.0.0.1:8000/api/docs/**. The OpenAPI schema is at `/api/schema/`.
+
+1. Expand `POST /api/v1/auth/register/`, click **Try it out**, enter a demo user,
+   then **Execute**. A successful registration returns 201.
+2. Execute `POST /api/v1/auth/login/` with that username and password.
+3. Copy the returned **access** token. Click **Authorize** at the top and paste
+   only the token, without `Bearer`. Swagger adds that prefix automatically.
+4. Execute `GET /api/v1/auth/me/` to see your profile.
+5. Test `refresh/` by submitting the refresh token in the JSON body. Save the new
+   pair and update **Authorize** with the new access token.
+6. Test `logout/` with the latest refresh token. Reusing it at `refresh/` should
+   return 401. Use Swagger's **Authorize → Logout** to clear the UI's access token.
+
+Swagger does not automatically log you in or replace its token after a refresh.
+Its Authorize dialog's Logout button only clears the token from the UI; the API
+logout endpoint revokes the refresh token on the server. Access tokens expire in
+five minutes. Reloading the page clears Swagger authorization.
+
+Swagger UI assets are served locally through `drf-spectacular-sidecar`; no CDN
+connection is required. Docs are public for the demo; protected API routes still
+require JWT. `drf-spectacular` generates the schema from the DRF endpoints.
+
+Validate the schema from `backend/`:
+
+```bash
+python manage.py spectacular --validate --fail-on-warn --file /tmp/mobility-openapi.yaml
+```
+
+### Endpoint reference
+
+Application models use UUIDv4 primary keys. Registration and `/me/` return `id`
+as a UUID string, and Swagger describes it as `type: string, format: uuid`.
+JWTs identify the user with the `user_uuid` claim. UUIDs do not replace ownership
+checks or permissions.
+
+Upgrading from the initial integer-ID foundation runs migration `users.0002_user_uuid`.
+It preserves accounts, password hashes and related records, and clears old Django
+sessions. Existing JWTs require a fresh login. This PostgreSQL data migration is
+atomic and forward-only; take a database backup before applying it. It locks the
+user table and referencing tables during conversion, so run it during a maintenance
+window if the database is in use.
+
+All routes below are under `/api/v1/auth/`. Login uses a username; email is contact
+information and is not verified or unique in this milestone.
+
+| Method | Route | Request / result |
+| --- | --- | --- |
+| POST | `register/` | Username, email, password; optional first/last name. Creates a CUSTOMER (201). |
+| POST | `login/` | Username and password; returns `access` and `refresh` (200). |
+| POST | `refresh/` | `refresh`; returns a new access/refresh pair (200). |
+| POST | `logout/` | `refresh`; revokes that refresh token and returns `{}` (200). |
+| GET | `me/` | Bearer access token; returns the current user's profile (200). |
+
+For example, with the local server running, register a demo account:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/auth/register/ \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"demo_customer","email":"demo@example.com","password":"Demo-only!CorrectHorse7492"}'
+```
+
+Log in with the same username and password:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/auth/login/ \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"demo_customer","password":"Demo-only!CorrectHorse7492"}'
+```
+
+Use the returned access token to fetch your profile:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/auth/me/ \
+  -H 'Authorization: Bearer YOUR_ACCESS_TOKEN'
+```
+
+Send `{"refresh":"YOUR_REFRESH_TOKEN"}` as JSON to `refresh/` or `logout/`.
+Those endpoints use possession of the refresh token and do not require a live
+access token. After refreshing, replace both stored tokens. Invalid, expired or
+blacklisted tokens return 401; missing fields return 400. Logging out twice with
+the same token returns 401 on the second request.
+
+Access tokens last five minutes; refresh tokens last one day and rotate on use.
+Logout revokes the supplied refresh token only. Previously issued access tokens
+remain usable until expiry; clients should discard both tokens on logout. Other
+login sessions remain active. Deactivated accounts are rejected on access and
+refresh. Password changes do not revoke existing tokens in this milestone.
+
+Registration rejects role/staff fields and applies Django's password validators.
+API authentication uses JWT; Django admin continues to use session authentication.
+Auth POST routes share a basic per-IP limit of 20 requests/minute. The current
+in-memory cache makes this a per-process development limit, not distributed
+brute-force protection. Clients should serialize refresh requests: concurrent
+rotation is not guaranteed to be single-use by the library's blacklist workflow.
+
+Periodically remove expired token records (from `backend/`):
+
+```bash
+python manage.py flushexpiredtokens
+```
+
+Schedule this daily when deploying. Rotation and revocation use Simple JWT's
+[documented blacklist app](https://django-rest-framework-simplejwt.readthedocs.io/en/stable/blacklist_app.html).
 
 See [development decisions](docs/development.md) for architecture and next steps.

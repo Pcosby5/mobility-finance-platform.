@@ -14,8 +14,8 @@
   created by Django is not automatically assigned the platform ADMIN role.
 - Role choices are also a database check constraint. API authorization and
   prevention of client-assigned roles arrive with the authentication endpoints.
-- DRF defaults to authenticated access. Only the liveness endpoint is public.
-  Session authentication is sufficient for the foundation; JWT comes next.
+- DRF defaults to JWT-authenticated access. Liveness and the authentication entry
+  points are public. Django admin retains its normal session authentication.
 - Environment variables override the root `.env`. Secret key and database URL
   are required. Deployment configuration and hardening will be completed in the
   deployment phase; current settings are not a finished deployment recipe.
@@ -28,16 +28,59 @@ database URL. Ruff formats and checks Python. Django's built-in test runner avoi
 adding a second test framework. Requirements pin the installed dependency set;
 updates should be deliberate and verified.
 
+## Step 2: authentication
+
+Registration, JWT login/refresh/logout and the current-user endpoint are implemented.
+Simple JWT handles signing, token validation, rotation and database-backed
+blacklisting. PyJWT is its token-encoding dependency. Public registration explicitly
+creates a CUSTOMER and rejects privilege fields. Serializer creation uses Django's
+user manager and password validators. A database uniqueness race returns a
+validation error rather than exposing an integrity exception.
+
+Five-minute access tokens bound the time an issued access token remains usable
+after logout. Logout revokes one refresh token using possession of that token;
+it works even after access expires. Rotation invalidates the previous refresh
+token for subsequent requests; clients must not refresh concurrently. Immediate
+access-token revocation and session-family tracking are not implemented.
+
+User roles are read from the database rather than embedded as authoritative JWT
+claims. The current-user endpoint exposes an explicit, read-only field list.
+Inactive/deleted accounts cannot refresh. A small serializer override maps the
+deleted-user lookup in Simple JWT 5.5 to an authentication error.
+
+Basic per-IP throttling uses Django's local cache for development. Shared rate
+limits, independent JWT signing-key management and token cleanup scheduling belong
+in deployment hardening. Email verification and password recovery are not yet
+implemented; email is contact information, while username is the login identity.
+
+## UUID identifier convention
+
+All application-owned domain models use server-generated UUIDv4 primary keys.
+User IDs, API responses, schema formats and JWT user identifiers now follow this
+convention. Django and third-party internal models retain their own primary keys;
+their foreign keys to users are UUIDs. UUIDs provide opaque identifiers, while
+authorization still requires permission and ownership checks.
+
+The existing user table is converted by an atomic, forward-only PostgreSQL
+migration. A temporary integer-to-UUID mapping updates all foreign keys and admin
+log object references. The migration preserves existing accounts and relationships;
+it invalidates old sessions and the new JWT claim requires a fresh login. A migration
+test exercises an existing account with groups, permissions, admin logs and tokens.
+Fresh-database migrations are also exercised by the test suite.
+
 ## Next small milestone
 
-Implement registration, JWT login/refresh/logout and a current-user endpoint.
-Public registration must always create a CUSTOMER. Test unauthenticated access,
-invalid credentials, role escalation attempts and refresh-token invalidation.
-Then introduce customer profiles with ownership permissions and OpenAPI docs.
+Swagger is available at `/api/docs/`, with the schema at `/api/schema/`.
+drf-spectacular generates OpenAPI from the serializers; explicit token responses
+describe rotation and logout accurately. Its sidecar package serves UI assets
+locally. Schema validation is part of verification.
+
+Introduce customer profiles with ownership permissions after manually testing
+authentication in Swagger.
 
 ## Remaining phases
 
-1. Complete authentication, customer profiles and API documentation.
+1. Customer profiles and their API documentation.
 2. Basic vehicles/devices, credit assessments, loans and repayment schedules.
 3. Test payments, provider abstraction, verified/idempotent webhooks and Mock MoMo.
 4. Mosquitto, a separate MQTT consumer and GPS simulator.
