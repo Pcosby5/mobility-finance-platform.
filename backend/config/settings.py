@@ -87,6 +87,15 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
+    # RiskBand and Alert.Severity share the same (value, label) choice set;
+    # pin one shared enum component instead of generating two names for it.
+    "ENUM_NAME_OVERRIDES": {
+        "RiskBandEnum": [
+            ("LOW", "Low"),
+            ("MEDIUM", "Medium"),
+            ("HIGH", "High"),
+        ]
+    },
     "TITLE": "Mobility Finance API",
     "DESCRIPTION": (
         "Demo mobility finance and vehicle telematics backend. "

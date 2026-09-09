@@ -12,16 +12,23 @@ from drf_spectacular.utils import (
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import SAFE_METHODS, BasePermission
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from users.models import User
 from vehicles.models import Vehicle
 from vehicles.permissions import can_manage_vehicles
 
+from .alerts import Alert
 from .models import TelemetryRecord
-from .serializers import TelemetryRecordSerializer
+from .serializers import (
+    AlertResolveSerializer,
+    AlertSerializer,
+    TelemetryRecordSerializer,
+)
 
 
 class TelemetryAccessPermission(BasePermission):
-    """Customers may read telemetry of their own vehicles; staff of all."""
+    """Customers may read telemetry/alerts of their own vehicles; staff of all."""
 
     def has_permission(self, request, view):
         if not request.user.is_authenticated:
@@ -106,3 +113,74 @@ class VehicleTelemetryQuerysetMixin:
 class VehicleTelemetryListView(VehicleTelemetryQuerysetMixin, ListAPIView):
     def get_queryset(self):
         return self.filtered_queryset()
+
+
+class AlertQuerysetMixin:
+    permission_classes = [TelemetryAccessPermission]
+    serializer_class = AlertSerializer
+
+    def get_queryset(self):
+        queryset = Alert.objects.select_related("vehicle", "resolved_by")
+        if getattr(self, "swagger_fake_view", False):
+            return queryset.none()
+        if can_manage_vehicles(self.request.user):
+            return queryset
+        return queryset.filter(vehicle__customer__user=self.request.user)
+
+
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Alerts"],
+        summary="List alerts",
+        description=(
+            "Newest first. Optional filters: vehicle=<uuid>, type, resolved=true|false. "
+            "Customers see alerts for their own vehicles only."
+        ),
+        responses={200: AlertSerializer(many=True)},
+        parameters=[
+            OpenApiParameter(name="vehicle", type=OpenApiTypes.UUID),
+            OpenApiParameter(name="type", type=OpenApiTypes.STR, enum=Alert.Type.values),
+            OpenApiParameter(name="resolved", type=OpenApiTypes.BOOL),
+        ],
+    )
+)
+class AlertListView(AlertQuerysetMixin, ListAPIView):
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        params = self.request.query_params
+        vehicle = params.get("vehicle")
+        if vehicle:
+            queryset = queryset.filter(vehicle_id=vehicle)
+        alert_type = params.get("type")
+        if alert_type:
+            queryset = queryset.filter(type=alert_type)
+        resolved = params.get("resolved")
+        if resolved is not None:
+            wanted = resolved.lower() == "true"
+            queryset = queryset.filter(resolved_at__isnull=not wanted)
+        return queryset
+
+
+class AlertResolveView(APIView):
+    """Operations/admin resolve an alert; manual resolves record the actor."""
+
+    permission_classes = [TelemetryAccessPermission]
+
+    @extend_schema(
+        tags=["Alerts"],
+        summary="Resolve an alert (operations/admin)",
+        description="Marks the alert resolved and records who resolved it. Send {}.",
+        request=AlertResolveSerializer,
+        responses={200: AlertSerializer},
+    )
+    def post(self, request, pk):
+        if not can_manage_vehicles(request.user):
+            self.permission_denied(request)
+        serializer = AlertResolveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        alert = get_object_or_404(Alert, pk=pk)
+        if alert.is_open:
+            alert.resolved_at = timezone.now()
+            alert.resolved_by = request.user
+            alert.save(update_fields=["resolved_at", "resolved_by", "updated_at"])
+        return Response(AlertSerializer(alert).data)

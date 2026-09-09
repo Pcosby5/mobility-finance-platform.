@@ -21,7 +21,10 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from vehicles.models import Device, Vehicle
 
+from . import geo
+from .alerts import Alert
 from .models import TelemetryRecord
+from .policy import LOW_BATTERY_PERCENT, SPEEDING_THRESHOLD_KPH
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +156,60 @@ def ingest_telemetry(payload) -> tuple[TelemetryRecord, bool]:
             "updated_at",
         ]
     )
+    _evaluate_alerts(vehicle, fields)
     return record, True
+
+
+def _evaluate_alerts(vehicle, fields):
+    """Raise or clear condition alerts from one telemetry message.
+
+    Runs inside the ingest transaction, so alerts and telemetry commit or roll
+    back together. GEOFENCE_EXIT is only evaluated for vehicles with a geofence;
+    a returning vehicle auto-clears its open alert, and SPEEDING/LOW_BATTERY
+    clear themselves once the condition no longer holds. A fresh message also
+    clears OFFLINE (the vehicle is talking again).
+    """
+    Alert.clear(vehicle=vehicle, alert_type=Alert.Type.OFFLINE)
+    if vehicle.geofence_latitude is not None:
+        inside = geo.is_within_radius_m(
+            float(fields["latitude"]),
+            float(fields["longitude"]),
+            float(vehicle.geofence_latitude),
+            float(vehicle.geofence_longitude),
+            vehicle.geofence_radius_m,
+        )
+        if inside:
+            Alert.clear(vehicle=vehicle, alert_type=Alert.Type.GEOFENCE_EXIT)
+        else:
+            Alert.raise_or_refresh(
+                vehicle=vehicle,
+                alert_type=Alert.Type.GEOFENCE_EXIT,
+                severity=Alert.Severity.HIGH,
+                message=(
+                    f"Vehicle {vehicle.registration_number} is outside its "
+                    f"geofence of {vehicle.geofence_radius_m} m radius."
+                ),
+            )
+    speed = fields["speed_kph"]
+    if speed is not None and speed > SPEEDING_THRESHOLD_KPH:
+        Alert.raise_or_refresh(
+            vehicle=vehicle,
+            alert_type=Alert.Type.SPEEDING,
+            severity=Alert.Severity.HIGH,
+            message=f"Vehicle {vehicle.registration_number} reported {speed} km/h.",
+        )
+    else:
+        Alert.clear(vehicle=vehicle, alert_type=Alert.Type.SPEEDING)
+    battery = fields["battery_percent"]
+    if battery is not None and battery <= LOW_BATTERY_PERCENT:
+        Alert.raise_or_refresh(
+            vehicle=vehicle,
+            alert_type=Alert.Type.LOW_BATTERY,
+            severity=Alert.Severity.MEDIUM,
+            message=f"Device battery of {vehicle.registration_number} is at {battery}%.",
+        )
+    elif battery is not None:
+        Alert.clear(vehicle=vehicle, alert_type=Alert.Type.LOW_BATTERY)
 
 
 def process_message(topic: str, body: bytes) -> dict:

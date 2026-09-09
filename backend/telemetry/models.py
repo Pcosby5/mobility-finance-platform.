@@ -15,6 +15,10 @@ import uuid
 
 from django.db import models
 
+# The Alert model lives in alerts.py beside its raise/clear rules; importing it
+# here registers it with the app registry so migrations and relations resolve.
+from .alerts import Alert  # noqa: F401
+
 
 class TelemetryRecord(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

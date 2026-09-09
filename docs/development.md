@@ -233,6 +233,38 @@ No payment or loan behaviour changed. Tests cover payload parsing boundaries,
 idempotent ingestion, device resolution failures, ``process_message`` error
 policies and API scoping/filtering.
 
+## Step 9: geofencing and alerts
+
+A vehicle may carry a simple radius-based geofence: nullable center plus radius
+in meters, written and cleared as one unit (serializer rule plus an
+all-or-nothing database constraint, radius bounds in ``vehicles/policy.py``).
+Distance uses the haversine formula in ``telemetry/geo.py`` — over the hundreds
+of meters a geofence cares about, the spherical-earth error is far smaller than
+the demo's radius slack, so PostGIS is not justified yet.
+
+``Alert`` lives in the telemetry app beside its raise/clear rules and covers
+GEOFENCE_EXIT, SPEEDING, LOW_BATTERY and OFFLINE. One open alert per (vehicle,
+type) is enforced by a partial unique constraint; ``raise_or_refresh``
+creates-or-refreshes inside that guarantee, so concurrent ingest workers cannot
+stack duplicate incidents. Condition alerts auto-clear during ingestion when
+the condition no longer holds (a returning vehicle, a slowing vehicle, a
+charged battery, a vehicle that reports again); humans resolve via the API,
+which records the actor — auto-resolve has no actor, so actor presence is an
+API rule, not a database constraint.
+
+Evaluation runs inside the ingest transaction, so telemetry, vehicle state and
+alerts commit or roll back together. OFFLINE detection intentionally does not:
+it is time-based, not message-based, and runs in the
+``check_offline_vehicles`` command (cron or container sidecar; Celery beat in
+production) over vehicles with an assigned, enabled device and at least one
+record — a vehicle that has never reported is untracked, not offline.
+
+Alerts are exposed read-only at ``/api/v1/alerts/`` with vehicle, type and
+resolved filters, plus ``POST /api/v1/alerts/{id}/resolve/`` for
+operations/admin. Customers are scoped to their own vehicles. Tests cover
+haversine distances, the full alert lifecycle, offline refresh semantics,
+geofence serializer/coordinate rules and API scoping.
+
 ## Next small milestone
 
 Swagger is available at `/api/docs/`, with the schema at `/api/schema/`.
@@ -240,16 +272,15 @@ drf-spectacular generates OpenAPI from the serializers; explicit token responses
 describe rotation and logout accurately. Its sidecar package serves UI assets
 locally. Schema validation is part of verification.
 
-Next add Phase 5 intelligence on top of the pipeline: radius-based geofence
-evaluation during ingestion, alert records (offline, geofence exit, speeding,
-low battery) and an alerts API with resolve semantics.
+Next containerize the stack: Dockerfile, Compose with PostgreSQL, Mosquitto,
+web and consumer services, then CI and deployment.
 
 ## Remaining phases
 
 1. ~~Loans and repayment schedules using saved credit assessments and vehicles.~~
 3. ~~Test payments, provider abstraction, verified/idempotent webhooks and Mock MoMo.~~
 4. ~~Mosquitto, a separate MQTT consumer and GPS simulator.~~
-5. Telemetry history, geofences, alerts and retention.
+5. ~~Telemetry history, geofences, alerts and retention.~~
 6. Docker and Compose.
 7. Consolidated tests and GitHub Actions CI.
 8. Render deployment.

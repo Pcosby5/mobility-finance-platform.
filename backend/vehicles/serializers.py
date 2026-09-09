@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Device, Vehicle
+from .policy import GEOFENCE_MAX_RADIUS_M, GEOFENCE_MIN_RADIUS_M
 
 
 class InventorySerializer(serializers.ModelSerializer):
@@ -60,6 +61,9 @@ class VehicleSerializer(InventorySerializer):
             "last_latitude",
             "last_longitude",
             "last_telemetry_at",
+            "geofence_latitude",
+            "geofence_longitude",
+            "geofence_radius_m",
             "device",
             "created_at",
             "updated_at",
@@ -88,6 +92,31 @@ class VehicleSerializer(InventorySerializer):
         if value > timezone.now().year + 1:
             raise serializers.ValidationError("Year cannot be later than next year.")
         return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        # The geofence is set, changed or cleared as one unit; vehicles are
+        # created without one by default. The database enforces the same rule.
+        geofence_keys = ("geofence_latitude", "geofence_longitude", "geofence_radius_m")
+        provided = [key for key in geofence_keys if key in attrs]
+        if provided and len(provided) != 3:
+            raise serializers.ValidationError(
+                "Provide geofence_latitude, geofence_longitude and geofence_radius_m together "
+                "(or none of them to leave the geofence unset)."
+            )
+        radius = attrs.get("geofence_radius_m")
+        if (
+            provided
+            and radius is not None
+            and not (GEOFENCE_MIN_RADIUS_M <= radius <= GEOFENCE_MAX_RADIUS_M)
+        ):
+            raise serializers.ValidationError(
+                {
+                    "geofence_radius_m": f"Radius must be between {GEOFENCE_MIN_RADIUS_M} "
+                    f"and {GEOFENCE_MAX_RADIUS_M} meters."
+                }
+            )
+        return attrs
 
     def update(self, instance, validated_data):
         from loans.policy import OPEN_STATUSES

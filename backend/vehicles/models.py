@@ -4,6 +4,8 @@ from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models.functions import Upper
 
+from .policy import GEOFENCE_MAX_RADIUS_M, GEOFENCE_MIN_RADIUS_M
+
 
 class Vehicle(models.Model):
     class Status(models.TextChoices):
@@ -50,6 +52,11 @@ class Vehicle(models.Model):
     last_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     last_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     last_telemetry_at = models.DateTimeField(null=True, blank=True)
+    # Simple radius-based geofence (demo): a center plus radius in meters.
+    # All three fields are set together or not at all.
+    geofence_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    geofence_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    geofence_radius_m = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -89,6 +96,29 @@ class Vehicle(models.Model):
                     )
                 ),
                 name="vehicle_valid_coordinates",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        geofence_latitude__isnull=True,
+                        geofence_longitude__isnull=True,
+                        geofence_radius_m__isnull=True,
+                    )
+                    | models.Q(
+                        geofence_latitude__isnull=False,
+                        geofence_longitude__isnull=False,
+                        geofence_radius_m__isnull=False,
+                    )
+                ),
+                name="vehicle_geofence_all_or_nothing",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(geofence_radius_m__isnull=True)
+                | models.Q(
+                    geofence_radius_m__gte=GEOFENCE_MIN_RADIUS_M,
+                    geofence_radius_m__lte=GEOFENCE_MAX_RADIUS_M,
+                ),
+                name="vehicle_geofence_radius_range",
             ),
         ]
 
