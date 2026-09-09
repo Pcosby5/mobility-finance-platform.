@@ -37,6 +37,12 @@ services:
         value: "False"
       - key: ALLOWED_HOSTS
         value: .onrender.com
+      # Django's CSRF origin check must know the public origin behind Render's
+      # proxy, or admin login returns 403.
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://.onrender.com
+      # Render terminates TLS at its edge proxy; the app reads the forwarded
+      # protocol header (SECURE_PROXY_SSL_HEADER) and needs no CLI flags.
       # Render terminates TLS at its edge proxy; the app reads the forwarded
       # protocol header (SECURE_PROXY_SSL_HEADER) and needs no CLI flags.
       - key: WEB_CONCURRENCY
@@ -82,3 +88,9 @@ services:
         sync: false
       - key: MQTT_BROKER_PORT
         value: "1883"
+      # Keeping both services' common env in sync (worker needs the same
+      # ALLOWED_HOSTS/CSRF for manage.py commands that may build URLs).
+      - key: ALLOWED_HOSTS
+        value: .onrender.com
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://.onrender.com

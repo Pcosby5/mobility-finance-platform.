@@ -14,6 +14,10 @@ environ.Env.read_env(PROJECT_DIR / ".env")
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
+# Behind Render's TLS-terminating proxy, Django's CSRF origin check needs the
+# public origin explicitly; without it, admin login (any browser form POST)
+# returns 403. Comma-separated list, e.g. ".onrender.com".
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
 INSTALLED_APPS = [
     "django.contrib.admin",
