@@ -130,6 +130,39 @@ permissions, assignment/detachment, uniqueness races, input/database validation 
 read-only telemetry. When loans and telemetry arrive, enforce restrictions on
 reassignment and preserve historical ownership before exposing their data.
 
+## Step 6: loans and repayment schedules
+
+A loan links a customer profile, an approved credit assessment and a vehicle; UUID
+primary keys follow the project convention. Origination and lifecycle actions run
+inside `transaction.atomic` and lock rows in a fixed order (customer → vehicle →
+loan) so concurrent activations cannot double-spend affordability or assign one
+vehicle to two open loans. A partial unique constraint allows only one open loan
+per vehicle, and check constraints pin principal, rate, duration, currency and
+the balance/status pairing to the database, not just the serializers.
+
+`loans/calculations.py` is a pure module: flat simple interest, ROUND_HALF_UP,
+with rounding residuals absorbed by the final installment so the schedule always
+sums to the total repayable. Due dates clamp to month ends. `loans/policy.py`
+holds the versioned demo limits (assessment age, combined debt-to-income,
+repayment window, rate and duration caps) so no magic numbers reach the services.
+
+Eligibility rechecks the profile against the assessment's saved input snapshot at
+creation *and* again at activation, so a loan cannot be activated on stale
+financials. Affordability counts existing open loans' monthly repayments against
+the reported income in the customer's currency; currency mismatches require
+review. Installments are bulk-created from the calculation and exposed read-only
+via `/api/v1/loans/{id}/installments/`.
+
+Vehicle reassignment, VIN changes and retirement are blocked while an open loan
+references the vehicle; the vehicle update path takes the same row lock as loan
+origination so the guard cannot race. Deletion does not exist; PROTECT foreign
+keys preserve financial history.
+
+No new dependencies were needed. Tests cover interest and rounding boundaries,
+month-end clamping, eligibility and affordability rejections, assessment staleness
+and snapshot drift, activation rechecks, cancel semantics, per-vehicle and
+financial database constraints, ownership scoping and management permissions.
+
 ## Next small milestone
 
 Swagger is available at `/api/docs/`, with the schema at `/api/schema/`.
@@ -137,13 +170,13 @@ drf-spectacular generates OpenAPI from the serializers; explicit token responses
 describe rotation and logout accurately. Its sidecar package serves UI assets
 locally. Schema validation is part of verification.
 
-Test vehicle/device creation and assignment in Swagger. Next build loans linked
-to the customer, a saved credit assessment and a vehicle, with explicit interest
-calculations and repayment schedules.
+Next build payments: a provider abstraction (Paystack test mode plus a simulated
+mobile-money provider), payment records, verified and idempotent webhooks, and
+loan balance updates that ride the same transaction discipline as origination.
 
 ## Remaining phases
 
-1. Loans and repayment schedules using saved credit assessments and vehicles.
+1. ~~Loans and repayment schedules using saved credit assessments and vehicles.~~
 3. Test payments, provider abstraction, verified/idempotent webhooks and Mock MoMo.
 4. Mosquitto, a separate MQTT consumer and GPS simulator.
 5. Telemetry history, geofences, alerts and retention.

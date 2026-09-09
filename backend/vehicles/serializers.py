@@ -89,6 +89,24 @@ class VehicleSerializer(InventorySerializer):
             raise serializers.ValidationError("Year cannot be later than next year.")
         return value
 
+    def update(self, instance, validated_data):
+        from loans.policy import OPEN_STATUSES
+
+        # InventorySerializer.save holds the transaction; share the vehicle lock with loan creation.
+        instance = Vehicle.objects.select_for_update().get(pk=instance.pk)
+        identity_changed = (
+            "customer" in validated_data
+            and getattr(validated_data["customer"], "pk", None) != instance.customer_id
+        ) or ("vin" in validated_data and validated_data["vin"] != instance.vin)
+        retiring = validated_data.get("status") == Vehicle.Status.RETIRED
+        if (identity_changed or retiring) and instance.loans.filter(
+            status__in=OPEN_STATUSES
+        ).exists():
+            raise serializers.ValidationError(
+                "An open loan prevents reassignment, VIN changes or vehicle retirement."
+            )
+        return super().update(instance, validated_data)
+
 
 class DeviceSerializer(InventorySerializer):
     class Meta:

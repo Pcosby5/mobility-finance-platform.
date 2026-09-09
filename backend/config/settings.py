@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "customers.apps.CustomersConfig",
     "credit.apps.CreditConfig",
     "vehicles.apps.VehiclesConfig",
+    "loans.apps.LoansConfig",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
