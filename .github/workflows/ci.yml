@@ -1,0 +1,71 @@
+# CI: lint, Django checks, migration verification, OpenAPI validation and the
+# full test suite against a real PostgreSQL service container - the same
+# database engine as development and production, so engine-specific behaviour
+# (partial unique constraints, CHECK constraints, FOR UPDATE) is exercised.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: mobility_finance
+          POSTGRES_USER: mobility
+          POSTGRES_PASSWORD: mobility
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mobility -d mobility_finance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DJANGO_SECRET_KEY: ci-only-not-secret
+      DATABASE_URL: postgresql://mobility:mobility@127.0.0.1:5432/mobility_finance
+      # No Paystack key here on purpose: the suite never touches the network.
+      # The provider client is tested with mocked responses, so CI cannot make
+      # a real (or failing-placeholder) call to api.paystack.co.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/dev.txt
+
+      - name: Lint (ruff)
+        run: |
+          ruff check backend gps-simulator
+          ruff format --check backend gps-simulator
+
+      - name: Django system checks
+        working-directory: backend
+        run: python manage.py check
+
+      - name: Verify migrations are committed and consistent
+        working-directory: backend
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Validate OpenAPI schema
+        working-directory: backend
+        run: python manage.py spectacular --validate --fail-on-warn --file /tmp/openapi.yaml
+
+      - name: Run tests
+        working-directory: backend
+        run: python manage.py test --parallel

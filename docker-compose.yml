@@ -1,0 +1,117 @@
+# Local development stack: one command brings up PostgreSQL, Mosquitto, the API,
+# the telemetry consumer and (optionally) the GPS simulator:
+#
+#   docker compose up --build
+#   docker compose --profile demo up --build     # includes the simulator
+#
+# Variable defaults come from the environment or the root .env (compose reads it
+# automatically). Secrets are never baked into the images.
+name: mobility-finance
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mobility_finance}
+      POSTGRES_USER: ${POSTGRES_USER:-mobility}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mobility}
+    ports:
+      # Host side uses 5433 to avoid clashing with a native PostgreSQL install.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mobility} -d ${POSTGRES_DB:-mobility_finance}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    # Loopback-only listener is unsafe to publish; the container config listens
+    # on 0.0.0.0 for the Compose network and the host mapping. No healthcheck:
+    # the image ships no client binaries, and the consumer reconnects on its own.
+    command: ["mosquitto", "-c", "/mosquitto/config/mosquitto.docker.conf"]
+    volumes:
+      - ./mosquitto/mosquitto.docker.conf:/mosquitto/config/mosquitto.docker.conf:ro
+    ports:
+      - "1883:1883"
+
+  web:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command:
+      - sh
+      - -c
+      - |
+        python manage.py migrate --noinput
+        python manage.py collectstatic --noinput
+        gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --access-logfile -
+    environment: &backend-env
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY in .env}
+      # Demo stack defaults to DEBUG=True so admin/Swagger work over plain HTTP;
+      # set DEBUG=False in the environment for prod-parity testing (then also
+      # SECURE_SSL_REDIRECT=False for the local healthcheck).
+      DEBUG: ${DEBUG:-True}
+      STATIC_ROOT: /app/staticfiles
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mobility}:${POSTGRES_PASSWORD:-mobility}@db:5432/${POSTGRES_DB:-mobility_finance}
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      PAYSTACK_PUBLIC_KEY: ${PAYSTACK_PUBLIC_KEY:-}
+      MOCK_MOMO_WEBHOOK_SECRET: ${MOCK_MOMO_WEBHOOK_SECRET:-momo-dev-secret}
+      MQTT_BROKER_HOST: mosquitto
+      MQTT_BROKER_PORT: 1883
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  consumer:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    # Image default CMD is the consumer; kept explicit here for readability.
+    command: ["python", "manage.py", "run_mqtt_consumer"]
+    environment:
+      <<: *backend-env
+    depends_on:
+      db:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+  simulator:
+    profiles: ["demo"]
+    build:
+      context: .
+      dockerfile: gps-simulator/Dockerfile
+    environment:
+      MQTT_BROKER_HOST: mosquitto
+      MQTT_BROKER_PORT: 1883
+      GPS_DEVICE_ID: ${GPS_DEVICE_ID:-GPS-001}
+      # Set GPS_VEHICLE_ID to the vehicle UUID you want to drive; the telemetry
+      # pipeline resolves the vehicle from the device registration either way.
+      GPS_VEHICLE_ID: ${GPS_VEHICLE_ID:-}
+      GPS_INTERVAL_SECONDS: ${GPS_INTERVAL_SECONDS:-2.0}
+    depends_on:
+      mosquitto:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pgdata:
