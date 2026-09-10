@@ -139,6 +139,7 @@ export type PaymentStatus = "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED";
 export interface Payment {
   id: string;
   loan: string;
+  customer: string;
   reference: string;
   provider: PaymentProvider;
   currency: Currency;
@@ -147,6 +148,19 @@ export interface Payment {
   provider_transaction_id?: string | null;
   failure_reason?: string;
   created_at: string;
+  updated_at?: string;
+}
+
+/** Response of POST /payments/initialize/ — a Payment plus optional checkout URL. */
+export interface InitializedPayment extends Payment {
+  checkout_url?: string | null;
+}
+
+/** Response of GET /payments/{reference}/verify/ — a Payment plus a status note
+ * and, when still PENDING, the stored provider checkout link (if any). */
+export interface VerifiedPayment extends Payment {
+  detail: string;
+  checkout_url?: string | null;
 }
 
 export interface WebhookEvent {

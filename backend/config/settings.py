@@ -142,6 +142,9 @@ SIMPLE_JWT = {
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
 PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", default="")
 MOCK_MOMO_WEBHOOK_SECRET = env("MOCK_MOMO_WEBHOOK_SECRET", default="momo-dev-secret")
+# Public origin of the web app. Used to return the payer from Paystack's hosted
+# checkout (callback_url); empty disables the redirect (webhook still settles).
+PUBLIC_SITE_BASE_URL = env("PUBLIC_SITE_BASE_URL", default="")
 
 # MQTT telemetry. The consumer is a separate process (manage.py run_mqtt_consumer);
 # HTTP request handling never touches the broker.

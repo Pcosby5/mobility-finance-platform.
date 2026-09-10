@@ -58,6 +58,10 @@ services:
         sync: false
       - key: MOCK_MOMO_WEBHOOK_SECRET
         generateValue: true
+      # Public origin of the web app (set to your Vercel URL) so Paystack's
+      # hosted checkout redirects the payer back into the app after payment.
+      - key: PUBLIC_SITE_BASE_URL
+        sync: false
 
   # MQTT telemetry consumer: the same image/idea as the Compose service - one
   # codebase, two long-running roles. It reconnects to the broker with backoff.

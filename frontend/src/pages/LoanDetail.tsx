@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { canManage, useAuth } from "@/auth/AuthContext";
+import { PayNowDialog } from "@/components/PayNowDialog";
 import { Badge, Button, Card, EmptyState, FormError, PageHeader, Spinner } from "@/components/ui";
 import { api, apiErrorMessage, listAll } from "@/lib/api";
 import { date, dateTime, loanTone, money } from "@/lib/format";
@@ -14,6 +15,7 @@ export function LoanDetailPage() {
   const isStaff = canManage(user);
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showPay, setShowPay] = useState(false);
 
   const loan = useQuery({
     queryKey: ["loans", id],
@@ -74,6 +76,17 @@ export function LoanDetailPage() {
             ? "Pending — activation rechecks eligibility and affordability before setting the balance."
             : "Flat simple interest with a server-calculated schedule."
         }
+        actions={
+          data.status === "ACTIVE" && (
+            <Button onClick={() => setShowPay(true)}>Pay now</Button>
+          )
+        }
+      />
+
+      <PayNowDialog
+        open={showPay}
+        onClose={() => setShowPay(false)}
+        loan={data}
       />
 
       <div className="grid gap-4 lg:grid-cols-2">

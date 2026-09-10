@@ -24,7 +24,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.generics import ListAPIView
-from rest_framework.permissions import SAFE_METHODS, AllowAny, BasePermission, IsAdminUser
+from rest_framework.permissions import AllowAny, BasePermission, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from users.models import User
@@ -46,7 +46,9 @@ class PaymentPermission(BasePermission):
             return False
         if request.user.role in [User.Role.OPERATIONS, User.Role.ADMIN]:
             return True
-        return request.user.role == User.Role.CUSTOMER and request.method in SAFE_METHODS
+        # Customers read the ledger and initialize payments on their own ACTIVE
+        # loans; the service enforces loan ownership.
+        return request.user.role == User.Role.CUSTOMER
 
 
 class PaymentQuerysetMixin:
@@ -73,9 +75,10 @@ class PaymentListView(PaymentQuerysetMixin, ListAPIView):
         summary="Initialize a payment for a loan",
         description=(
             "Creates a PENDING payment and a provider transaction. Pass the loan "
-            "UUID as loan_id; amount defaults to the outstanding balance. Paystack "
-            "responses include a checkout_url (test mode). Simulated MoMo charges "
-            "resolve via the momo/simulate callback endpoint."
+            "UUID as loan_id; amount defaults to the outstanding balance. Customers "
+            "may only initialize on their own ACTIVE loans. Paystack responses "
+            "include a checkout_url (test mode). Simulated MoMo charges resolve "
+            "via the momo/simulate callback endpoint."
         ),
         request=PaymentInitializeSerializer,
         responses={201: PaymentSerializer},
@@ -118,7 +121,16 @@ class PaymentVerifyView(APIView):
             queryset = queryset.filter(customer__user=request.user)
         payment = get_object_or_404(queryset, reference=reference)
         payment, note = refresh_payment_status(payment)
-        return Response(PaymentSerializer(payment).data | {"detail": note})
+        # Surface the stored checkout link so a PENDING Paystack payment can
+        # always be resumed from the app (covers pre-normalization payments,
+        # which stored Paystack's original "authorization_url" key).
+        initialization = (payment.raw_event or {}).get("initialization") or {}
+        checkout_url = initialization.get("checkout_url") or initialization.get(
+            "authorization_url"
+        )
+        return Response(
+            PaymentSerializer(payment).data | {"detail": note, "checkout_url": checkout_url}
+        )
 
 
 class WebhookEventListView(ListAPIView):

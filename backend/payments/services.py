@@ -16,10 +16,12 @@ Settlement rules (the financially sensitive part):
 import json
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from loans.models import Loan
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from users.models import User
 
 from .models import Payment, WebhookEvent
 from .providers import PaymentProviderError, generate_reference, get_provider
@@ -35,6 +37,11 @@ def initialize_payment(*, actor, loan_id, provider_name, amount=None):
     )
     if loan.status != Loan.Status.ACTIVE:
         raise ValidationError({"loan": "Only ACTIVE loans can receive payments."})
+    # Customers pay their own loans; staff may initialize on any loan. Object
+    # ownership is enforced here so the view can stay permission-thin.
+    if actor.role not in (User.Role.OPERATIONS, User.Role.ADMIN):
+        if loan.customer.user_id != actor.pk:
+            raise PermissionDenied("You can only start payments for your own loans.")
     amount = amount if amount is not None else loan.outstanding_balance
     if amount <= 0 or amount > loan.outstanding_balance:
         raise ValidationError(
@@ -65,9 +72,25 @@ def initialize_payment(*, actor, loan_id, provider_name, amount=None):
         # Paystack requires an email; profiles may not carry one in the demo.
         "email": user.email or f"{user.username}@example.com",
     }
-    result = provider.create_payment(
-        reference=reference, amount=amount, currency=loan.currency, metadata=metadata
-    )
+    # Send the payer back into the app after Paystack's hosted checkout. The
+    # webhook (or a manual verify) remains the settlement path; the redirect
+    # is only a UX convenience.
+    base_url = (settings.PUBLIC_SITE_BASE_URL or "").rstrip("/")
+    callback_url = f"{base_url}/payments?reference={reference}" if base_url else None
+    # A provider outage is a handled client error, not a 500: the payment row
+    # created above rolls back with the transaction, so no orphan PENDING rows.
+    try:
+        result = provider.create_payment(
+            reference=reference,
+            amount=amount,
+            currency=loan.currency,
+            metadata=metadata,
+            callback_url=callback_url,
+        )
+    except PaymentProviderError as exc:
+        raise ValidationError(
+            {"detail": "Payment provider is unavailable; try again."}
+        ) from exc
     payment.raw_event = {"initialization": result}
     payment.save(update_fields=["raw_event", "updated_at"])
     return payment, result
