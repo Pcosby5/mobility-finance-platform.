@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Base */
+html {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-slate-100 text-slate-900 antialiased;
+}
+
+/* Slim scrollbars inside cards/tables */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: theme(--color-slate-300) transparent;
+}
