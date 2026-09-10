@@ -37,7 +37,9 @@ class PaymentProviderError(Exception):
 class PaymentProvider:
     name = ""
 
-    def create_payment(self, reference, amount, currency, metadata):  # pragma: no cover
+    def create_payment(  # pragma: no cover
+        self, reference, amount, currency, metadata, callback_url=None
+    ):
         raise NotImplementedError
 
     def verify_payment(self, reference):  # pragma: no cover
@@ -67,7 +69,7 @@ class PaystackProvider(PaymentProvider):
             "Content-Type": "application/json",
         }
 
-    def create_payment(self, reference, amount, currency, metadata):
+    def create_payment(self, reference, amount, currency, metadata, callback_url=None):
         subunit = Decimal("100")
         payload = {
             "reference": reference,
@@ -76,6 +78,10 @@ class PaystackProvider(PaymentProvider):
             "currency": currency,
             "metadata": {key: value for key, value in metadata.items() if key != "email"},
         }
+        if callback_url:
+            # Hosted-checkout redirect target; settlement still arrives via the
+            # webhook or a pull-based verify, never through this redirect.
+            payload["callback_url"] = callback_url
         try:
             response = requests.post(
                 f"{PAYSTACK_API_BASE}/transaction/initialize",
@@ -89,7 +95,13 @@ class PaystackProvider(PaymentProvider):
             raise PaymentProviderError("Payment provider is unavailable.") from exc
         if not body.get("status"):
             raise PaymentProviderError("Payment provider rejected the transaction.")
-        return body.get("data", {})
+        data = body.get("data", {})
+        # Normalize for the app: Paystack names its checkout link
+        # "authorization_url"; expose it as checkout_url so the view and web
+        # client stay provider-agnostic.
+        if data.get("authorization_url") and not data.get("checkout_url"):
+            data["checkout_url"] = data["authorization_url"]
+        return data
 
     def verify_payment(self, reference):
         try:
@@ -137,7 +149,7 @@ class MockMomoProvider(PaymentProvider):
     _transactions = {}
     _lock = threading.Lock()
 
-    def create_payment(self, reference, amount, currency, metadata):
+    def create_payment(self, reference, amount, currency, metadata, callback_url=None):
         with self._lock:
             self._transactions[reference] = {"status": "pending", "attempts": 0}
         return {

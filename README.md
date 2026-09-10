@@ -515,12 +515,44 @@ After the first deploy:
 2. Web service **Shell** → `cd backend && python manage.py createsuperuser`.
 3. Set `MQTT_BROKER_HOST` for the worker (a public test broker for the demo —
    Render does not host brokers; AWS IoT Core is the production path below).
-4. Paystack dashboard → **Test Webhook URL** =
-   `https://<service>.onrender.com/api/v1/webhooks/paystack/` — the deployed
-   URL replaces ngrok for webhook testing.
+
+### Deploying the frontend (Vercel) and wiring callback + webhook
+
+Deploying the React frontend to a public URL is what completes the Paystack
+callback loop, and the deployed backend is what receives the webhook — no
+ngrok or tunnel needed once both are live.
+
+1. **Deploy the frontend to Vercel** — import the repo, set the **root
+   directory** to `frontend/`. Vercel auto-detects Vite; `vercel.json` already
+   provides the SPA rewrite. Set one environment variable before deploying:
+   `VITE_API_BASE_URL=https://<api-service>.onrender.com` (Vite inlines it at
+   build time — changing it later requires a redeploy).
+2. **Point the backend at the frontend** (Render dashboard → api service →
+   Environment):
+   - `PUBLIC_SITE_BASE_URL=https://<your-app>.vercel.app` — this becomes the
+     `callback_url` Paystack embeds in each checkout session, so after the
+     success screen the payer is redirected to
+     `https://<your-app>.vercel.app/payments?reference=<ref>`, where the app
+     auto-verifies and shows the result.
+   - `CORS_ALLOWED_ORIGINS=https://<your-app>.vercel.app` — the browser needs
+     explicit cross-origin approval to call the API (JWT uses the
+     Authorization header, so no cookies are involved).
+   Redeploy or restart the service after changing env vars.
+3. **Point Paystack at the backend webhook** (Paystack dashboard → Settings →
+   API Keys & Webhooks, TEST mode): set the webhook URL to
+   `https://<api-service>.onrender.com/api/v1/webhooks/paystack/`. Paystack
+   then pushes `charge.success` events, the handler verifies the HMAC
+   signature and re-verifies with the API before settling — the verify
+   endpoint remains the self-healing fallback either way.
+
+Order matters on first setup: deploy the backend first (you need its URL for
+step 1), then the frontend, then finish steps 2–3 with both URLs known.
 
 Free-tier services sleep after inactivity (slow first request) and the free
-worker restarts periodically, which the consumer handles by design.
+worker restarts periodically, which the consumer handles by design. Note that
+Paystack's webhook cannot wake a sleeping free-tier service — for demo
+webhook testing, keep the service warm (a periodic ping) or rely on the
+verify path, which settles on demand.
 
 ---
 

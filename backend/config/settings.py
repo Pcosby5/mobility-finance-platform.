@@ -19,6 +19,12 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 # returns 403. Comma-separated list, e.g. ".onrender.com".
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
+# Browser clients on other origins (the React frontend on Vercel) need explicit
+# CORS approval. Authentication is JWT in the Authorization header, so no
+# cookies/credentials are involved; preflighted requests carry the allowed
+# headers the API expects. Empty by default: same-origin Swagger needs nothing.
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -27,6 +33,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "corsheaders",
     "drf_spectacular",
     "drf_spectacular_sidecar",
     "rest_framework_simplejwt.token_blacklist",
@@ -39,6 +46,7 @@ INSTALLED_APPS = [
     "telemetry.apps.TelemetryConfig",
 ]
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     # Serves collectstatic output directly from the web process, so gunicorn
     # does not need a separate static server in the demo containers.
@@ -134,6 +142,9 @@ SIMPLE_JWT = {
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
 PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", default="")
 MOCK_MOMO_WEBHOOK_SECRET = env("MOCK_MOMO_WEBHOOK_SECRET", default="momo-dev-secret")
+# Public origin of the web app. Used to return the payer from Paystack's hosted
+# checkout (callback_url); empty disables the redirect (webhook still settles).
+PUBLIC_SITE_BASE_URL = env("PUBLIC_SITE_BASE_URL", default="")
 
 # MQTT telemetry. The consumer is a separate process (manage.py run_mqtt_consumer);
 # HTTP request handling never touches the broker.

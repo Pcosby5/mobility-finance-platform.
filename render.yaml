@@ -43,10 +43,14 @@ services:
         value: https://.onrender.com
       # Render terminates TLS at its edge proxy; the app reads the forwarded
       # protocol header (SECURE_PROXY_SSL_HEADER) and needs no CLI flags.
-      # Render terminates TLS at its edge proxy; the app reads the forwarded
-      # protocol header (SECURE_PROXY_SSL_HEADER) and needs no CLI flags.
       - key: WEB_CONCURRENCY
         value: 2
+      # The React frontend is deployed separately (Vercel). JWT travels in the
+      # Authorization header, so no cookies/CSRF are involved - but the browser
+      # still needs explicit CORS approval to call this API cross-origin.
+      # Set to your frontend origin, e.g. https://your-app.vercel.app
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
       # Static files: whitenoise serves collectstatic output from the same
       # process, so no CDN or extra service is required for the demo.
       - key: STATIC_ROOT
@@ -58,6 +62,13 @@ services:
         sync: false
       - key: MOCK_MOMO_WEBHOOK_SECRET
         generateValue: true
+      # Public origin of the web app (set to your Vercel URL) so Paystack's
+      # hosted checkout redirects the payer back into the app after payment.
+      - key: PUBLIC_SITE_BASE_URL
+        sync: false
+      # Paystack dashboard -> Settings -> Webhooks should point at this same
+      # deployed origin: https://<api-service>.onrender.com/api/v1/webhooks/paystack/
+      # (set in the Paystack dashboard, not here).
 
   # MQTT telemetry consumer: the same image/idea as the Compose service - one
   # codebase, two long-running roles. It reconnects to the broker with backoff.

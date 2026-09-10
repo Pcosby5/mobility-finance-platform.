@@ -483,25 +483,18 @@ class PaymentAPITests(PaymentFixtureMixin, APITestCase):
         listing = self.client.get(reverse("payments:list"), secure=True)
         self.assertEqual(listing.data["count"], 1)
 
-    def test_customer_can_read_own_payment_but_not_initialize(self):
+    def test_customer_initializes_own_payment_and_reads_ledger(self):
         loan = self.make_loan(3)
-        self.authenticate(self.operator)
-        payment = self.client.post(
+        self.authenticate(self.customer)
+        created = self.client.post(
             reverse("payments:initialize"),
             {"loan_id": str(loan.pk), "provider": "MOCK_MOMO"},
             format="json",
             secure=True,
-        ).data
-        self.authenticate(self.customer)
-        self.assertEqual(
-            self.client.post(
-                reverse("payments:initialize"),
-                {"loan_id": str(loan.pk), "provider": "MOCK_MOMO"},
-                format="json",
-                secure=True,
-            ).status_code,
-            403,
         )
+        self.assertEqual(created.status_code, 201, created.data)
+        payment = created.data
+        self.assertEqual(payment["status"], "PENDING")
         listing = self.client.get(reverse("payments:list"), secure=True)
         self.assertEqual(listing.data["count"], 1)
         verify = self.client.get(
@@ -510,6 +503,26 @@ class PaymentAPITests(PaymentFixtureMixin, APITestCase):
         )
         self.assertEqual(verify.status_code, 200)
         self.assertIn("detail", verify.data)
+
+    def test_customer_cannot_initialize_on_another_customers_loan(self):
+        loan = self.make_loan(3)
+        other_user = User.objects.create_user(username="pay_other_customer")
+        CustomerProfile.objects.create(
+            user=other_user,
+            full_name="Other Customer",
+            phone="+233209999999",
+            monthly_income="10000.00",
+            employment_status="EMPLOYED",
+            employment_duration_months=12,
+        )
+        self.authenticate(other_user)
+        response = self.client.post(
+            reverse("payments:initialize"),
+            {"loan_id": str(loan.pk), "provider": "MOCK_MOMO"},
+            format="json",
+            secure=True,
+        )
+        self.assertEqual(response.status_code, 403)
 
     def test_customer_cannot_see_webhook_events(self):
         self.authenticate(self.customer)
@@ -595,9 +608,32 @@ class PaystackProviderClientTests(SimpleTestCase):
                 metadata={"email": "customer@example.com", "loan_id": "abc"},
             )
         self.assertEqual(data["authorization_url"], "https://checkout.paystack.com/test")
+        # The app reads checkout_url; the client normalizes Paystack's naming.
+        self.assertEqual(data["checkout_url"], "https://checkout.paystack.com/test")
         payload = mock_post.call_args.kwargs["json"]
         self.assertEqual(payload["amount"], 15000)  # major units -> pesewas
         self.assertEqual(payload["metadata"], {"loan_id": "abc"})
+
+    def test_create_payment_passes_callback_url(self):
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "status": True,
+            "data": {"authorization_url": "https://checkout.paystack.com/test"},
+        }
+        with patch("payments.providers.requests.post", return_value=response) as mock_post:
+            self.provider.create_payment(
+                reference="PSK-TEST",
+                amount=Decimal("10.00"),
+                currency="GHS",
+                metadata={"email": "customer@example.com"},
+                callback_url="https://app.example.com/payments?reference=PSK-TEST",
+            )
+        payload = mock_post.call_args.kwargs["json"]
+        self.assertEqual(
+            payload["callback_url"],
+            "https://app.example.com/payments?reference=PSK-TEST",
+        )
 
     def test_create_payment_wraps_http_errors(self):
         with patch(
