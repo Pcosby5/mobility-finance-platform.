@@ -171,3 +171,9 @@ SECURE_SSL_REDIRECT = not DEBUG
 # sets it and external traffic cannot bypass the proxy, so trusting it is safe.
 # Local requests carry no such header, so local behaviour is unchanged.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# The suite runs against production-like settings (Django forces DEBUG=False
+# during tests), which turns SECURE_SSL_REDIRECT on outside local development
+# and 301s every plain-HTTP test-client request before it reaches a view.
+# The runner below neutralizes exactly that redirect for the test run.
+TEST_RUNNER = "config.test_runner.ProdLikeTestRunner"

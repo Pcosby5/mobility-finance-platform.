@@ -88,9 +88,7 @@ def initialize_payment(*, actor, loan_id, provider_name, amount=None):
             callback_url=callback_url,
         )
     except PaymentProviderError as exc:
-        raise ValidationError(
-            {"detail": "Payment provider is unavailable; try again."}
-        ) from exc
+        raise ValidationError({"detail": "Payment provider is unavailable; try again."}) from exc
     payment.raw_event = {"initialization": result}
     payment.save(update_fields=["raw_event", "updated_at"])
     return payment, result

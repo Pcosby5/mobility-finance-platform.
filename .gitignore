@@ -14,8 +14,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Anchored to the repo root: a bare "lib/" also matches frontend/src/lib/
+# and silently excludes the frontend's shared modules from commits.
+/lib/
+/lib64/
 parts/
 sdist/
 var/
