@@ -125,9 +125,7 @@ class PaymentVerifyView(APIView):
         # always be resumed from the app (covers pre-normalization payments,
         # which stored Paystack's original "authorization_url" key).
         initialization = (payment.raw_event or {}).get("initialization") or {}
-        checkout_url = initialization.get("checkout_url") or initialization.get(
-            "authorization_url"
-        )
+        checkout_url = initialization.get("checkout_url") or initialization.get("authorization_url")
         return Response(
             PaymentSerializer(payment).data | {"detail": note, "checkout_url": checkout_url}
         )
