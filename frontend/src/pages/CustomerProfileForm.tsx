@@ -1,8 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Button, Card, Field, FormError, Input, PageHeader, Select, Spinner } from "@/components/ui";
+import { Button, Dialog, Field, FormError, Input, Select } from "@/components/ui";
 import { api, apiErrorMessage } from "@/lib/api";
 import type { Currency, CustomerProfile, EmploymentStatus } from "@/types/api";
 
@@ -52,39 +51,41 @@ function toForm(profile: CustomerProfile): ProfileForm {
 }
 
 /**
- * Create (customer self-service, no id param) or edit (id param) a profile.
- * Staff manage existing profiles; there is deliberately no user-picker because
- * the API does not expose a user-list endpoint.
+ * Create (no `profile`) or edit (`profile`) a customer profile in a persistent
+ * dialog. The dialog cannot be dismissed by outside clicks, so partially
+ * entered financial data is never lost.
  */
-export function CustomerProfileFormPage() {
-  const { id } = useParams();
-  const navigate = useNavigate();
+export function ProfileDialog({
+  open,
+  onClose,
+  profile,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Existing profile to edit; omit to create. */
+  profile?: CustomerProfile | null;
+  /** Called after a successful save with the saved profile. */
+  onSaved?: (saved: CustomerProfile) => void;
+}) {
   const queryClient = useQueryClient();
+  const isEdit = profile != null;
 
-  const isEdit = Boolean(id);
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
 
-  const existing = useQuery({
-    queryKey: ["customers", id],
-    queryFn: () => api.get<CustomerProfile>(`/customers/${id}/`).then((r) => r.data),
-    enabled: isEdit,
-  });
-
   useEffect(() => {
-    if (existing.data) setForm(toForm(existing.data));
-  }, [existing.data]);
+    if (open) {
+      setForm(profile ? toForm(profile) : EMPTY_FORM);
+      setError(null);
+    }
+  }, [open, profile]);
 
   const mutation = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
       isEdit
-        ? api.patch<CustomerProfile>(`/customers/${id}/`, payload).then((r) => r.data)
+        ? api.patch<CustomerProfile>(`/customers/${profile.id}/`, payload).then((r) => r.data)
         : api.post<CustomerProfile>("/customers/", payload).then((r) => r.data),
-    onSuccess: (saved) => {
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-      if (isEdit) navigate(`/customers/${saved.id}`, { replace: true });
-      else navigate("/dashboard", { replace: true });
-    },
   });
 
   function update<K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) {
@@ -94,138 +95,136 @@ export function CustomerProfileFormPage() {
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
-    mutation.mutate({
-      full_name: form.full_name.trim(),
-      phone: form.phone.trim(),
-      employment_status: form.employment_status,
-      employment_duration_months:
-        form.employment_duration_months === "" ? null : Number(form.employment_duration_months),
-      currency: form.currency,
-      monthly_income: form.monthly_income,
-      existing_debt: form.existing_debt || "0",
-      monthly_debt_repayment: form.monthly_debt_repayment || "0",
-    });
-  }
-
-  if (isEdit && existing.isLoading) return <Spinner className="mt-8" />;
-  if (isEdit && existing.isError) {
-    return (
-      <>
-        <PageHeader title="Edit profile" />
-        <Card>
-          <p className="text-sm text-red-600">Could not load this profile.</p>
-        </Card>
-      </>
+    mutation.mutate(
+      {
+        full_name: form.full_name.trim(),
+        phone: form.phone.trim(),
+        employment_status: form.employment_status,
+        employment_duration_months:
+          form.employment_duration_months === "" ? null : Number(form.employment_duration_months),
+        currency: form.currency,
+        monthly_income: form.monthly_income,
+        existing_debt: form.existing_debt || "0",
+        monthly_debt_repayment: form.monthly_debt_repayment || "0",
+      },
+      {
+        onSuccess: (saved) => {
+          queryClient.invalidateQueries({ queryKey: ["customers"] });
+          onSaved?.(saved);
+          onClose();
+        },
+        onError: (err) => setError(apiErrorMessage(err)),
+      },
     );
   }
 
   return (
-    <>
-      <PageHeader
-        title={isEdit ? "Edit customer profile" : "Create your profile"}
-        subtitle="Self-reported inputs for demo credit screening."
-      />
-      <Card className="max-w-2xl">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <FormError message={error ?? (mutation.isError ? apiErrorMessage(mutation.error) : null)} />
+    <Dialog
+      open={open}
+      onClose={onClose}
+      size="lg"
+      title={isEdit ? "Edit customer profile" : "Create your financial profile"}
+      description="Self-reported inputs for demo credit screening."
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <FormError message={error} />
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Full name">
-              <Input
-                value={form.full_name}
-                onChange={(e) => update("full_name", e.target.value)}
-                required
-              />
-            </Field>
-            <Field label="Phone" hint="e.g. +233201234567">
-              <Input
-                value={form.phone}
-                onChange={(e) => update("phone", e.target.value)}
-                placeholder="+233…"
-                required
-              />
-            </Field>
-          </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Full name">
+            <Input
+              value={form.full_name}
+              onChange={(e) => update("full_name", e.target.value)}
+              required
+            />
+          </Field>
+          <Field label="Phone" hint="e.g. +233201234567">
+            <Input
+              value={form.phone}
+              onChange={(e) => update("phone", e.target.value)}
+              placeholder="+233…"
+              required
+            />
+          </Field>
+        </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Employment status">
-              <Select
-                value={form.employment_status}
-                onChange={(e) => update("employment_status", e.target.value as EmploymentStatus)}
-              >
-                {EMPLOYMENT_OPTIONS.map((status) => (
-                  <option key={status} value={status}>
-                    {status.replace("_", " ")}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Employment duration (months)">
-              <Input
-                type="number"
-                min={0}
-                value={form.employment_duration_months}
-                onChange={(e) => update("employment_duration_months", e.target.value)}
-              />
-            </Field>
-          </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Employment status">
+            <Select
+              value={form.employment_status}
+              onChange={(e) => update("employment_status", e.target.value as EmploymentStatus)}
+            >
+              {EMPLOYMENT_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status.replace("_", " ")}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Employment duration (months)">
+            <Input
+              type="number"
+              min={0}
+              value={form.employment_duration_months}
+              onChange={(e) => update("employment_duration_months", e.target.value)}
+            />
+          </Field>
+        </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Currency">
-              <Select
-                value={form.currency}
-                onChange={(e) => update("currency", e.target.value as Currency)}
-              >
-                {CURRENCY_OPTIONS.map((currency) => (
-                  <option key={currency} value={currency}>
-                    {currency}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Monthly income">
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={form.monthly_income}
-                onChange={(e) => update("monthly_income", e.target.value)}
-                required
-              />
-            </Field>
-          </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Currency">
+            <Select
+              value={form.currency}
+              onChange={(e) => update("currency", e.target.value as Currency)}
+            >
+              {CURRENCY_OPTIONS.map((currency) => (
+                <option key={currency} value={currency}>
+                  {currency}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Monthly income">
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.monthly_income}
+              onChange={(e) => update("monthly_income", e.target.value)}
+              required
+            />
+          </Field>
+        </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Existing debt">
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={form.existing_debt}
-                onChange={(e) => update("existing_debt", e.target.value)}
-              />
-            </Field>
-            <Field label="Monthly debt repayment">
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={form.monthly_debt_repayment}
-                onChange={(e) => update("monthly_debt_repayment", e.target.value)}
-              />
-            </Field>
-          </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Existing debt">
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.existing_debt}
+              onChange={(e) => update("existing_debt", e.target.value)}
+            />
+          </Field>
+          <Field label="Monthly debt repayment">
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.monthly_debt_repayment}
+              onChange={(e) => update("monthly_debt_repayment", e.target.value)}
+            />
+          </Field>
+        </div>
 
-          <div className="flex gap-2">
-            <Button type="submit" loading={mutation.isPending}>
-              {isEdit ? "Save changes" : "Create profile"}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => navigate(-1)}>
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </Card>
-    </>
+        <div className="flex gap-2">
+          <Button type="submit" loading={mutation.isPending} className="flex-1">
+            {isEdit ? "Save changes" : "Create profile"}
+          </Button>
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

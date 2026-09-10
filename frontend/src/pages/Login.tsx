@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/auth/AuthContext";
 import { Button, Card, Field, FormError, Input } from "@/components/ui";
 import { apiErrorMessage } from "@/lib/api";
+import { RegisterDialog } from "@/pages/Register";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -14,6 +15,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -62,13 +64,18 @@ export function LoginPage() {
             </Button>
             <p className="text-center text-sm text-slate-500">
               No account?{" "}
-              <Link to="/register" className="font-semibold text-indigo-600 hover:underline">
+              <button
+                type="button"
+                onClick={() => setShowRegister(true)}
+                className="font-semibold text-indigo-600 hover:underline"
+              >
                 Register
-              </Link>
+              </button>
             </p>
           </form>
         </Card>
       </div>
+      <RegisterDialog open={showRegister} onClose={() => setShowRegister(false)} />
     </div>
   );
 }

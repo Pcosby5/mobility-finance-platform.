@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { canManage, useAuth } from "@/auth/AuthContext";
-import { Badge, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
+import { ProfileDialog } from "@/pages/CustomerProfileForm";
+import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
 import { listAll } from "@/lib/api";
 import { loanTone, money, relativeTime, severityTone } from "@/lib/format";
 import type { Alert, CustomerProfile, Loan, Payment } from "@/types/api";
@@ -141,6 +143,8 @@ function StaffDashboard() {
 
 /** Customer overview: own profile, loans and vehicle alerts. */
 function CustomerDashboard() {
+  const queryClient = useQueryClient();
+  const [showProfile, setShowProfile] = useState(false);
   const profile = useQuery({
     queryKey: ["customers", "me"],
     queryFn: () => listAll<CustomerProfile>("/customers/"),
@@ -157,13 +161,20 @@ function CustomerDashboard() {
   return (
     <>
       {!profile.isLoading && !myProfile && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          You have no financial profile yet — credit screening and loans need one.{" "}
-          <Link to="/profile/new" className="font-semibold underline">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <span>
+            You have no financial profile yet — credit screening and loans need one.
+          </span>
+          <Button variant="secondary" onClick={() => setShowProfile(true)}>
             Create your profile
-          </Link>
+          </Button>
         </div>
       )}
+      <ProfileDialog
+        open={showProfile}
+        onClose={() => setShowProfile(false)}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ["customers"] })}
+      />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Monthly income"

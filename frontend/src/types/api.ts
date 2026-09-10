@@ -103,24 +103,34 @@ export interface Loan {
   customer: string;
   vehicle: string;
   credit_assessment: string;
+  created_by?: string | null;
+  currency: Currency;
   principal_amount: string;
   annual_interest_rate: string;
   duration_months: number;
-  currency: Currency;
+  first_repayment_date?: string | null;
+  total_interest: string;
   total_repayable: string;
   monthly_repayment: string;
+  final_repayment: string;
   outstanding_balance: string;
   status: LoanStatus;
-  first_repayment_date?: string;
+  policy_version?: string;
+  origination_snapshot?: Record<string, unknown>;
   activated_at?: string | null;
+  cancelled_at?: string | null;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Installment {
   id: string;
-  sequence_number: number;
+  loan: string;
+  number: number;
   due_date: string;
-  amount: string;
+  principal_due: string;
+  interest_due: string;
+  amount_due: string;
 }
 
 export type PaymentProvider = "PAYSTACK" | "MOCK_MOMO";

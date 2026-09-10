@@ -1,4 +1,5 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { cx } from "@/lib/format";
 
@@ -217,4 +218,95 @@ export function FullPageSpinner() {
 
 export function EmptyState({ children }: { children: ReactNode }) {
   return <p className="py-6 text-center text-sm text-slate-500">{children}</p>;
+}
+
+/* ---------------------------------- Dialog --------------------------------- */
+
+const DIALOG_SIZES = {
+  sm: "max-w-md",
+  md: "max-w-lg",
+  lg: "max-w-3xl",
+} as const;
+
+/**
+ * Modal form dialog. Deliberately persistent: clicking the backdrop or pressing
+ * Escape never dismisses it, so a half-filled form cannot be lost by a stray
+ * click. Closing is always an explicit action (X button or a form's Cancel).
+ */
+export function Dialog({
+  open,
+  onClose,
+  title,
+  description,
+  size = "md",
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  description?: string;
+  size?: keyof typeof DIALOG_SIZES;
+  children: ReactNode;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    restoreFocusRef.current = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      restoreFocusRef.current?.focus?.();
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" aria-hidden />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+        className={cx(
+          "relative w-full rounded-xl bg-white shadow-xl outline-none",
+          DIALOG_SIZES[size],
+        )}
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+            {description !== undefined && (
+              <p className="mt-0.5 text-sm text-slate-500">{description}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden
+              className="size-5"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </header>
+        <div className="max-h-[calc(100vh-10rem)] overflow-y-auto px-5 py-4">{children}</div>
+      </div>
+    </div>,
+    document.body,
+  );
 }

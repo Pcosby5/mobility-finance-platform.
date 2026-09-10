@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   Card,
+  Dialog,
   EmptyState,
   Field,
   FormError,
@@ -107,7 +108,97 @@ function TelemetryTable({ vehicleId }: { vehicleId: string }) {
   );
 }
 
-function GeofenceEditor({ vehicle }: { vehicle: Vehicle }) {
+/** Staff dialog: change lifecycle status and (re)assign the customer. */
+function VehicleEditDialog({
+  open,
+  onClose,
+  vehicle,
+}: {
+  open: boolean;
+  onClose: () => void;
+  vehicle: Vehicle;
+}) {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+
+  const customers = useQuery({
+    queryKey: ["customers"],
+    queryFn: () => listAll<CustomerProfile>("/customers/"),
+    enabled: open,
+  });
+
+  const patchVehicle = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      api.patch<Vehicle>(`/vehicles/${vehicle.id}/`, payload).then((r) => r.data),
+    onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      onClose();
+    },
+    onError: (err) => setError(apiErrorMessage(err)),
+  });
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const fd = new FormData(event.currentTarget);
+    const customer = String(fd.get("customer") ?? "");
+    patchVehicle.mutate({
+      status: String(fd.get("status") ?? ""),
+      ...(customer ? { customer } : { customer: null }),
+    });
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Edit vehicle"
+      description={`${vehicle.registration_number} — assignment is blocked while an open loan exists.`}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <FormError message={error} />
+        <Field label="Status">
+          <Select name="status" defaultValue={vehicle.status}>
+            {VEHICLE_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Customer">
+          <Select name="customer" defaultValue={vehicle.customer ?? ""}>
+            <option value="">Unassigned</option>
+            {(customers.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.full_name} ({c.username})
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <div className="flex gap-2">
+          <Button type="submit" loading={patchVehicle.isPending} className="flex-1">
+            Save changes
+          </Button>
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** Staff dialog: set or clear the geofence as one unit. */
+function GeofenceDialog({
+  open,
+  onClose,
+  vehicle,
+}: {
+  open: boolean;
+  onClose: () => void;
+  vehicle: Vehicle;
+}) {
   const queryClient = useQueryClient();
   const [lat, setLat] = useState(vehicle.geofence_latitude ?? "");
   const [lng, setLng] = useState(vehicle.geofence_longitude ?? "");
@@ -118,7 +209,11 @@ function GeofenceEditor({ vehicle }: { vehicle: Vehicle }) {
   );
   const [error, setError] = useState<string | null>(null);
 
-  const clearPayload = { geofence_latitude: null, geofence_longitude: null, geofence_radius_m: null };
+  const clearPayload = {
+    geofence_latitude: null,
+    geofence_longitude: null,
+    geofence_radius_m: null,
+  };
 
   const mutation = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
@@ -126,6 +221,7 @@ function GeofenceEditor({ vehicle }: { vehicle: Vehicle }) {
     onSuccess: () => {
       setError(null);
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      onClose();
     },
     onError: (err) => setError(apiErrorMessage(err)),
   });
@@ -146,15 +242,15 @@ function GeofenceEditor({ vehicle }: { vehicle: Vehicle }) {
   }
 
   return (
-    <Card
+    <Dialog
+      open={open}
+      onClose={onClose}
       title="Geofence"
-      actions={
-        hasGeofence ? <Badge tone="info">Radius {vehicle.geofence_radius_m} m</Badge> : undefined
-      }
+      description={`${vehicle.registration_number} — set or clear all three values together.`}
     >
-      <form className="space-y-3" onSubmit={handleSave}>
+      <form onSubmit={handleSave} className="space-y-4">
         <FormError message={error} />
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Center latitude">
             <Input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="5.6037" />
           </Field>
@@ -166,24 +262,20 @@ function GeofenceEditor({ vehicle }: { vehicle: Vehicle }) {
           </Field>
         </div>
         <div className="flex gap-2">
-          <Button type="submit" loading={mutation.isPending}>
+          <Button type="submit" loading={mutation.isPending} className="flex-1">
             Save geofence
           </Button>
           {hasGeofence && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => mutation.mutate(clearPayload)}
-            >
-              Clear
+            <Button type="button" variant="secondary" onClick={() => mutation.mutate(clearPayload)}>
+              Clear geofence
             </Button>
           )}
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
         </div>
-        <p className="text-xs text-slate-500">
-          Set or clear latitude, longitude and radius together — the API rejects partial geofences.
-        </p>
       </form>
-    </Card>
+    </Dialog>
   );
 }
 
@@ -191,8 +283,8 @@ export function VehicleDetailPage() {
   const { id = "" } = useParams();
   const { user } = useAuth();
   const isStaff = canManage(user);
-  const queryClient = useQueryClient();
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showGeofence, setShowGeofence] = useState(false);
 
   const vehicle = useQuery({
     queryKey: ["vehicles", id],
@@ -203,16 +295,6 @@ export function VehicleDetailPage() {
     queryKey: ["customers"],
     queryFn: () => listAll<CustomerProfile>("/customers/"),
     enabled: isStaff,
-  });
-
-  const patchVehicle = useMutation({
-    mutationFn: (payload: Record<string, unknown>) =>
-      api.patch<Vehicle>(`/vehicles/${id}/`, payload).then((r) => r.data),
-    onSuccess: () => {
-      setActionError(null);
-      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
-    },
-    onError: (err) => setActionError(apiErrorMessage(err)),
   });
 
   if (vehicle.isLoading) return <Spinner className="mt-8" />;
@@ -239,20 +321,38 @@ export function VehicleDetailPage() {
       <PageHeader
         title={data.registration_number}
         subtitle={`${data.make} ${data.model_name} · ${data.year} · VIN ${data.vin}`}
+        actions={
+          isStaff && (
+            <>
+              <Button variant="secondary" onClick={() => setShowEdit(true)}>
+                Edit
+              </Button>
+              <Button variant="secondary" onClick={() => setShowGeofence(true)}>
+                Geofence
+              </Button>
+            </>
+          )
+        }
       />
 
+      {isStaff && data && (
+        <>
+          <VehicleEditDialog open={showEdit} onClose={() => setShowEdit(false)} vehicle={data} />
+          <GeofenceDialog
+            open={showGeofence}
+            onClose={() => setShowGeofence(false)}
+            vehicle={data}
+          />
+        </>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card
-          title="Status"
-          actions={
-            <Link to="/vehicles" className="text-xs font-semibold text-indigo-600 hover:underline">
-              ← All vehicles
-            </Link>
-          }
-        >
+        <Card title="Status">
           <div className="mb-3 flex flex-wrap gap-2">
             <Badge tone={vehicleTone(data.status)}>{data.status}</Badge>
-            <Badge tone={connectivityTone(data.connectivity_status)}>{data.connectivity_status}</Badge>
+            <Badge tone={connectivityTone(data.connectivity_status)}>
+              {data.connectivity_status}
+            </Badge>
             <Badge tone={movementTone(data.movement_status)}>{data.movement_status}</Badge>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -301,54 +401,20 @@ export function VehicleDetailPage() {
               <dt className="text-xs uppercase tracking-wide text-slate-500">Last report</dt>
               <dd className="mt-0.5">{dateTime(data.last_telemetry_at)}</dd>
             </div>
+            <div className="col-span-2">
+              <dt className="text-xs uppercase tracking-wide text-slate-500">Geofence</dt>
+              <dd className="mt-0.5 text-sm text-slate-700">
+                {data.geofence_latitude != null && data.geofence_radius_m != null
+                  ? `${Number(data.geofence_latitude).toFixed(5)}, ${Number(
+                      data.geofence_longitude ?? "",
+                    ).toFixed(5)} · radius ${data.geofence_radius_m} m`
+                  : "Not set"}
+              </dd>
+            </div>
           </dl>
-
-          {isStaff && (
-            <form
-              className="mt-4 space-y-3 border-t border-slate-100 pt-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const fd = new FormData(event.currentTarget);
-                const customer = String(fd.get("customer") ?? "");
-                patchVehicle.mutate({
-                  status: String(fd.get("status") ?? ""),
-                  ...(customer ? { customer } : { customer: null }),
-                });
-              }}
-            >
-              <FormError message={actionError} />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Status">
-                  <Select name="status" defaultValue={data.status}>
-                    {VEHICLE_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Customer" hint="Blocked while an open loan exists.">
-                  <Select name="customer" defaultValue={data.customer ?? ""}>
-                    <option value="">Unassigned</option>
-                    {(customers.data ?? []).map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.full_name} ({c.username})
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
-              <Button type="submit" loading={patchVehicle.isPending}>
-                Save changes
-              </Button>
-            </form>
-          )}
         </Card>
 
-        <div className="space-y-4">
-          {isStaff && <GeofenceEditor vehicle={data} />}
-          <TelemetryTable vehicleId={id} />
-        </div>
+        <TelemetryTable vehicleId={id} />
       </div>
     </>
   );

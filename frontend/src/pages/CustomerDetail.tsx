@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { ProfileDialog } from "@/pages/CustomerProfileForm";
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
 import { api, apiErrorMessage } from "@/lib/api";
 import { dateTime, money } from "@/lib/format";
@@ -21,6 +22,7 @@ export function CustomerDetailPage() {
   const { id = "" } = useParams();
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
 
   const customer = useQuery({
     queryKey: ["customers", id],
@@ -65,13 +67,15 @@ export function CustomerDetailPage() {
         subtitle={`${profile.username} · ${profile.phone}${profile.email ? ` · ${profile.email}` : ""}`}
       />
 
+      <ProfileDialog open={showEdit} onClose={() => setShowEdit(false)} profile={profile} />
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card
           title="Financial profile"
           actions={
-            <Link to={`/customers/${id}/edit`} className="text-xs font-semibold text-indigo-600 hover:underline">
+            <Button variant="secondary" onClick={() => setShowEdit(true)}>
               Edit
-            </Link>
+            </Button>
           }
         >
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
