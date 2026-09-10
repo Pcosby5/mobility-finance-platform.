@@ -7,6 +7,8 @@ import { CustomerProfileFormPage } from "@/pages/CustomerProfileForm";
 import { CustomersPage } from "@/pages/Customers";
 import { DashboardPage } from "@/pages/Dashboard";
 import { LoginPage } from "@/pages/Login";
+import { VehicleDetailPage } from "@/pages/VehicleDetail";
+import { VehiclesPage } from "@/pages/Vehicles";
 import { PlaceholderPage } from "@/pages/Placeholder";
 import { RegisterPage } from "@/pages/Register";
 
@@ -24,15 +26,8 @@ export default function App() {
           <Route path="/customers/:id" element={<CustomerDetailPage />} />
           <Route path="/customers/:id/edit" element={<CustomerProfileFormPage />} />
           <Route path="/profile/new" element={<CustomerProfileFormPage />} />
-          <Route
-            path="/vehicles"
-            element={
-              <PlaceholderPage
-                title="Vehicles"
-                subtitle="Inventory, devices and telemetry status."
-              />
-            }
-          />
+          <Route path="/vehicles" element={<VehiclesPage />} />
+          <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
           <Route
             path="/loans"
             element={

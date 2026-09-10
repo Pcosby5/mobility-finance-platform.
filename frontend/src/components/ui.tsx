@@ -172,11 +172,22 @@ export function FormError({ message }: { message?: string | null }) {
 
 /* ------------------------------- PageHeader -------------------------------- */
 
-export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+}) {
   return (
-    <div className="mb-4">
-      <h1 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
-      {subtitle !== undefined && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
+        {subtitle !== undefined && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+      </div>
+      {actions !== undefined && <div className="flex items-center gap-2">{actions}</div>}
     </div>
   );
 }
