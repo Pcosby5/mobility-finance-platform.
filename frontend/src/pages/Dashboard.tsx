@@ -13,20 +13,33 @@ function StatCard({
   label,
   value,
   to,
+  accent = "slate",
 }: {
   label: string;
   value: string | number | null | undefined;
   to: string;
+  accent?: "slate" | "blue" | "emerald" | "amber";
 }) {
+  const accents = {
+    slate: "from-slate-950 to-slate-700",
+    blue: "from-blue-600 to-cyan-500",
+    emerald: "from-emerald-600 to-teal-500",
+    amber: "from-amber-500 to-orange-500",
+  } as const;
+
   return (
     <Link
       to={to}
-      className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-300 hover:shadow"
+      className="metric-link block"
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-slate-900">
-        {value === null || value === undefined ? "—" : value}
+      <span className={`absolute right-4 top-4 size-9 rounded-2xl bg-gradient-to-br ${accents[accent]} opacity-10`} />
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        {label}
       </p>
+      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+        {value === null || value === undefined ? "..." : value}
+      </p>
+      <p className="mt-3 text-xs font-medium text-slate-400">Open details</p>
     </Link>
   );
 }
@@ -56,7 +69,7 @@ function LoanRows({ loans }: { loans: Loan[] }) {
 }
 
 function AlertRows({ alerts }: { alerts: Alert[] }) {
-  if (alerts.length === 0) return <EmptyState>No open alerts. 🎉</EmptyState>;
+  if (alerts.length === 0) return <EmptyState>No open alerts.</EmptyState>;
   return (
     <ul className="divide-y divide-slate-100">
       {alerts.slice(0, 5).map((alert) => (
@@ -95,14 +108,14 @@ function StaffDashboard() {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Active loans" value={openLoans.length} to="/loans" />
-        <StatCard label="Pending payments" value={pendingPayments.length} to="/payments" />
-        <StatCard label="Open alerts" value={alerts.data?.length ?? null} to="/alerts" />
-        <StatCard label="Customers" value={customers.data?.length ?? null} to="/customers" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Active loans" value={openLoans.length} to="/loans" accent="blue" />
+        <StatCard label="Pending payments" value={pendingPayments.length} to="/payments" accent="amber" />
+        <StatCard label="Open alerts" value={alerts.data?.length ?? null} to="/alerts" accent="slate" />
+        <StatCard label="Customers" value={customers.data?.length ?? null} to="/customers" accent="emerald" />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="mt-6 grid gap-5 lg:grid-cols-2">
         <Card
           title="Recent loans"
           actions={
@@ -175,16 +188,18 @@ function CustomerDashboard() {
         onClose={() => setShowProfile(false)}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["customers"] })}
       />
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Monthly income"
           value={myProfile ? money(myProfile.monthly_income, myProfile.currency) : null}
           to="/profile"
+          accent="emerald"
         />
         <StatCard
           label="Active loans"
           value={activeLoans.length}
           to="/loans"
+          accent="blue"
         />
         <StatCard
           label="Monthly repayment"
@@ -200,11 +215,12 @@ function CustomerDashboard() {
               : 0
           }
           to="/loans"
+          accent="amber"
         />
-        <StatCard label="Open alerts" value={alerts.data?.length ?? null} to="/alerts" />
+        <StatCard label="Open alerts" value={alerts.data?.length ?? null} to="/alerts" accent="slate" />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="mt-6 grid gap-5 lg:grid-cols-2">
         <Card
           title="My loans"
           actions={

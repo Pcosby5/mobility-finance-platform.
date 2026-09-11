@@ -10,14 +10,64 @@
 /* Base */
 html {
   color-scheme: light;
+  background: #f6f7f9;
 }
 
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  @apply min-h-svh bg-[#f6f7f9] text-slate-950 antialiased;
+  font-feature-settings:
+    "rlig" 1,
+    "calt" 1,
+    "ss01" 1;
 }
 
 /* Slim scrollbars inside cards/tables */
 * {
   scrollbar-width: thin;
   scrollbar-color: theme(--color-slate-300) transparent;
+}
+
+::selection {
+  @apply bg-slate-950 text-white;
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@layer components {
+  .app-surface {
+    @apply rounded-[2rem] border border-white/75 bg-white/82 shadow-[0_24px_80px_rgba(15,23,42,0.08)] ring-1 ring-slate-950/[0.03] backdrop-blur-xl;
+  }
+
+  .glass-panel {
+    @apply border border-white/70 bg-white/76 shadow-[0_18px_60px_rgba(15,23,42,0.08)] ring-1 ring-slate-950/[0.03] backdrop-blur-2xl;
+  }
+
+  .data-table {
+    @apply min-w-full border-separate border-spacing-0 text-sm;
+  }
+
+  .data-table thead tr {
+    @apply text-left text-[0.68rem] uppercase tracking-[0.14em] text-slate-400;
+  }
+
+  .data-table th {
+    @apply border-b border-slate-200/80 bg-slate-50/70 px-4 py-3 font-semibold first:rounded-tl-2xl last:rounded-tr-2xl;
+  }
+
+  .data-table td {
+    @apply border-b border-slate-100 px-4 py-3.5 align-middle;
+  }
+
+  .data-table tbody tr {
+    @apply transition duration-200 hover:bg-slate-50/80;
+  }
+
+  .metric-link {
+    @apply relative overflow-hidden rounded-3xl border border-white/80 bg-white/85 p-5 shadow-[0_16px_50px_rgba(15,23,42,0.07)] ring-1 ring-slate-950/[0.03] transition duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-[0_22px_70px_rgba(15,23,42,0.1)];
+  }
 }

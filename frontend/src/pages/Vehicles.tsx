@@ -211,26 +211,26 @@ export function VehiclesPage() {
           </EmptyState>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="data-table">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4 font-medium">Vehicle</th>
-                  <th className="py-2 pr-4 font-medium">Status</th>
-                  <th className="py-2 pr-4 font-medium">Connectivity</th>
-                  <th className="py-2 pr-4 font-medium">Movement</th>
-                  <th className="py-2 pr-4 font-medium">Last seen</th>
-                  {isStaff && <th className="py-2 pr-4 font-medium">Customer</th>}
-                  <th className="py-2 pr-4 font-medium">Device</th>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Status</th>
+                  <th>Connectivity</th>
+                  <th>Movement</th>
+                  <th>Last seen</th>
+                  {isStaff && <th>Customer</th>}
+                  <th>Device</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {(vehicles.data ?? []).map((vehicle) => {
                   const assigned = vehicle.customer
                     ? (customers.data ?? []).find((c) => c.id === vehicle.customer)
                     : undefined;
                   return (
-                    <tr key={vehicle.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 pr-4">
+                    <tr key={vehicle.id}>
+                      <td>
                         <Link
                           to={`/vehicles/${vehicle.id}`}
                           className="font-medium text-indigo-600 hover:underline"
@@ -241,28 +241,28 @@ export function VehiclesPage() {
                           {vehicle.make} {vehicle.model_name} · {vehicle.year}
                         </span>
                       </td>
-                      <td className="py-2.5 pr-4">
+                      <td>
                         <Badge tone={vehicleTone(vehicle.status)}>{vehicle.status}</Badge>
                       </td>
-                      <td className="py-2.5 pr-4">
+                      <td>
                         <Badge tone={connectivityTone(vehicle.connectivity_status)}>
                           {vehicle.connectivity_status}
                         </Badge>
                       </td>
-                      <td className="py-2.5 pr-4">
+                      <td>
                         <Badge tone={movementTone(vehicle.movement_status)}>
                           {vehicle.movement_status}
                         </Badge>
                       </td>
-                      <td className="py-2.5 pr-4 text-slate-500">
+                      <td className="text-slate-500">
                         {relativeTime(vehicle.last_telemetry_at)}
                       </td>
                       {isStaff && (
-                        <td className="py-2.5 pr-4 text-slate-500">
+                        <td className="text-slate-500">
                           {assigned ? assigned.full_name : vehicle.customer ? "—" : "Unassigned"}
                         </td>
                       )}
-                      <td className="py-2.5 pr-4 text-slate-500">
+                      <td className="text-slate-500">
                         {vehicle.device?.device_id ? (
                           vehicle.device.enabled ? (
                             <span className="font-mono text-xs">{vehicle.device.device_id}</span>

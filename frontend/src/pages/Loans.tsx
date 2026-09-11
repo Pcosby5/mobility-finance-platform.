@@ -313,22 +313,22 @@ export function LoansPage() {
           <EmptyState>No loans yet.</EmptyState>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="data-table">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4 font-medium">Loan</th>
-                  <th className="py-2 pr-4 font-medium">Principal</th>
-                  <th className="py-2 pr-4 font-medium">Monthly</th>
-                  <th className="py-2 pr-4 font-medium">Outstanding</th>
-                  <th className="py-2 pr-4 font-medium">Term</th>
-                  <th className="py-2 pr-4 font-medium">Status</th>
-                  {isStaff && <th className="py-2 pr-4 font-medium">Customer</th>}
+                <tr>
+                  <th>Loan</th>
+                  <th>Principal</th>
+                  <th>Monthly</th>
+                  <th>Outstanding</th>
+                  <th>Term</th>
+                  <th>Status</th>
+                  {isStaff && <th>Customer</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {(loans.data ?? []).map((loan) => (
-                  <tr key={loan.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 pr-4">
+                  <tr key={loan.id}>
+                    <td>
                       <Link
                         to={`/loans/${loan.id}`}
                         className="font-mono text-xs font-medium text-indigo-600 hover:underline"
@@ -340,15 +340,15 @@ export function LoansPage() {
                           "vehicle " + loan.vehicle.slice(0, 8) + "…"}
                       </span>
                     </td>
-                    <td className="py-2.5 pr-4">{money(loan.principal_amount, loan.currency)}</td>
-                    <td className="py-2.5 pr-4">{money(loan.monthly_repayment, loan.currency)}</td>
-                    <td className="py-2.5 pr-4">
+                    <td>{money(loan.principal_amount, loan.currency)}</td>
+                    <td>{money(loan.monthly_repayment, loan.currency)}</td>
+                    <td>
                       {money(loan.outstanding_balance, loan.currency)}
                     </td>
-                    <td className="py-2.5 pr-4 text-slate-500">
+                    <td className="text-slate-500">
                       {loan.duration_months} mo @ {loan.annual_interest_rate}%
                     </td>
-                    <td className="py-2.5 pr-4">
+                    <td>
                       <Badge tone={loanTone(loan.status)}>{loan.status}</Badge>
                       <span className="mt-0.5 block text-xs text-slate-400">
                         {loan.status === "ACTIVE" && loan.activated_at
@@ -357,7 +357,7 @@ export function LoansPage() {
                       </span>
                     </td>
                     {isStaff && (
-                      <td className="py-2.5 pr-4 text-slate-500">
+                      <td className="text-slate-500">
                         {customerById.get(loan.customer)?.full_name ?? loan.customer.slice(0, 8) + "…"}
                       </td>
                     )}

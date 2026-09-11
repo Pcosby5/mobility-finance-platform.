@@ -27,20 +27,20 @@ export function CustomersPage() {
           <EmptyState>No customer profiles yet.</EmptyState>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="data-table">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4 font-medium">Customer</th>
-                  <th className="py-2 pr-4 font-medium">Employment</th>
-                  <th className="py-2 pr-4 font-medium">Monthly income</th>
-                  <th className="py-2 pr-4 font-medium">Existing debt</th>
-                  <th className="py-2 pr-4 font-medium">Created</th>
+                <tr>
+                  <th>Customer</th>
+                  <th>Employment</th>
+                  <th>Monthly income</th>
+                  <th>Existing debt</th>
+                  <th>Created</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {(customers.data ?? []).map((customer) => (
-                  <tr key={customer.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 pr-4">
+                  <tr key={customer.id}>
+                    <td>
                       <Link
                         to={`/customers/${customer.id}`}
                         className="font-medium text-indigo-600 hover:underline"
@@ -51,14 +51,14 @@ export function CustomersPage() {
                         {customer.username} · {customer.phone}
                       </span>
                     </td>
-                    <td className="py-2.5 pr-4">
+                    <td>
                       <Badge tone="neutral">{customer.employment_status}</Badge>
                     </td>
-                    <td className="py-2.5 pr-4">
+                    <td>
                       {money(customer.monthly_income, customer.currency)}
                     </td>
-                    <td className="py-2.5 pr-4">{money(customer.existing_debt)}</td>
-                    <td className="py-2.5 pr-4 text-slate-500">{date(customer.created_at)}</td>
+                    <td>{money(customer.existing_debt)}</td>
+                    <td className="text-slate-500">{date(customer.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
