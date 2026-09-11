@@ -25,7 +25,13 @@ import {
   osmLink,
   vehicleTone,
 } from "@/lib/format";
-import type { CustomerProfile, TelemetryRecord, Vehicle, VehicleStatus } from "@/types/api";
+import type {
+  CustomerProfile,
+  Device,
+  TelemetryRecord,
+  Vehicle,
+  VehicleStatus,
+} from "@/types/api";
 
 const VEHICLE_STATUSES: VehicleStatus[] = ["ACTIVE", "MAINTENANCE", "RETIRED"];
 
@@ -279,12 +285,191 @@ function GeofenceDialog({
   );
 }
 
+/**
+ * Staff dialog: register a new device for this vehicle, attach an existing
+ * unassigned one, or manage the current device (enable/disable, detach).
+ */
+function DeviceDialog({
+  open,
+  onClose,
+  vehicle,
+}: {
+  open: boolean;
+  onClose: () => void;
+  vehicle: Vehicle;
+}) {
+  const queryClient = useQueryClient();
+  const [newDeviceId, setNewDeviceId] = useState("");
+  const [attachId, setAttachId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const attached = vehicle.device;
+
+  const devices = useQuery({
+    queryKey: ["devices"],
+    queryFn: () => listAll<Device>("/devices/"),
+    enabled: open && !attached,
+  });
+  const unattached = (devices.data ?? []).filter((d) => !d.vehicle);
+
+  const mutateDevice = useMutation({
+    mutationFn: (input: {
+      path: string;
+      method: "post" | "patch";
+      payload: Record<string, unknown>;
+    }) =>
+      input.method === "post"
+        ? api.post<Device>(input.path, input.payload).then((r) => r.data)
+        : api.patch<Device>(input.path, input.payload).then((r) => r.data),
+    onSuccess: () => {
+      setError(null);
+      setNewDeviceId("");
+      setAttachId("");
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["devices"] });
+      onClose();
+    },
+    onError: (err) => setError(apiErrorMessage(err)),
+  });
+
+  function registerAndAttach(event: React.FormEvent) {
+    event.preventDefault();
+    mutateDevice.mutate({
+      path: "/devices/",
+      method: "post",
+      payload: { device_id: newDeviceId.trim(), vehicle: vehicle.id, enabled: true },
+    });
+  }
+
+  function attachExisting(event: React.FormEvent) {
+    event.preventDefault();
+    if (!attachId) return;
+    mutateDevice.mutate({
+      path: `/devices/${attachId}/`,
+      method: "patch",
+      payload: { vehicle: vehicle.id },
+    });
+  }
+
+  function toggleEnabled() {
+    if (!attached?.id) return;
+    mutateDevice.mutate({
+      path: `/devices/${attached.id}/`,
+      method: "patch",
+      payload: { enabled: !attached.enabled },
+    });
+  }
+
+  function detach() {
+    if (!attached?.id) return;
+    mutateDevice.mutate({
+      path: `/devices/${attached.id}/`,
+      method: "patch",
+      payload: { vehicle: null },
+    });
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Device"
+      description={`${vehicle.registration_number} — one device per vehicle; the device ID is its telemetry identity.`}
+    >
+      <FormError message={error} />
+
+      {attached?.id ? (
+        <div className="space-y-4">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-slate-500">Device ID</dt>
+              <dd className="mt-0.5 font-mono text-xs">{attached.device_id}</dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-slate-500">State</dt>
+              <dd className="mt-0.5">
+                <Badge tone={attached.enabled ? "success" : "neutral"}>
+                  {attached.enabled ? "ENABLED" : "DISABLED"}
+                </Badge>
+              </dd>
+            </div>
+          </dl>
+          <p className="text-xs text-slate-500">
+            Disabling stops telemetry ingestion. Detaching frees the vehicle for another device.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" loading={mutateDevice.isPending} onClick={toggleEnabled}>
+              {attached.enabled ? "Disable" : "Enable"}
+            </Button>
+            <Button variant="danger" loading={mutateDevice.isPending} onClick={detach}>
+              Detach
+            </Button>
+            <Button variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <form onSubmit={registerAndAttach} className="space-y-4">
+            <Field
+              label="New device ID"
+              hint="Letters, digits, underscores or hyphens — e.g. GPS-001."
+            >
+              <Input
+                value={newDeviceId}
+                onChange={(e) => setNewDeviceId(e.target.value)}
+                placeholder="GPS-001"
+                pattern="[A-Za-z0-9_-]+"
+                maxLength={64}
+                required
+              />
+            </Field>
+            <Button type="submit" loading={mutateDevice.isPending} className="w-full">
+              Register &amp; attach
+            </Button>
+          </form>
+
+          {devices.isLoading ? (
+            <Spinner />
+          ) : devices.isError ? (
+            <p className="text-sm text-red-600">Could not load existing devices.</p>
+          ) : unattached.length > 0 ? (
+            <form onSubmit={attachExisting} className="space-y-4 border-t border-slate-100 pt-4">
+              <Field label="Or attach an existing unassigned device">
+                <Select value={attachId} onChange={(e) => setAttachId(e.target.value)} required>
+                  <option value="">Choose a device…</option>
+                  {unattached.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.device_id}
+                      {d.enabled ? "" : " (disabled)"}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Button
+                type="submit"
+                variant="secondary"
+                loading={mutateDevice.isPending}
+                className="w-full"
+              >
+                Attach device
+              </Button>
+            </form>
+          ) : null}
+        </div>
+      )}
+    </Dialog>
+  );
+}
+
 export function VehicleDetailPage() {
   const { id = "" } = useParams();
   const { user } = useAuth();
   const isStaff = canManage(user);
   const [showEdit, setShowEdit] = useState(false);
   const [showGeofence, setShowGeofence] = useState(false);
+  const [showDevice, setShowDevice] = useState(false);
 
   const vehicle = useQuery({
     queryKey: ["vehicles", id],
@@ -330,6 +515,9 @@ export function VehicleDetailPage() {
               <Button variant="secondary" onClick={() => setShowGeofence(true)}>
                 Geofence
               </Button>
+              <Button variant="secondary" onClick={() => setShowDevice(true)}>
+                Device
+              </Button>
             </>
           )
         }
@@ -343,6 +531,7 @@ export function VehicleDetailPage() {
             onClose={() => setShowGeofence(false)}
             vehicle={data}
           />
+          <DeviceDialog open={showDevice} onClose={() => setShowDevice(false)} vehicle={data} />
         </>
       )}
 

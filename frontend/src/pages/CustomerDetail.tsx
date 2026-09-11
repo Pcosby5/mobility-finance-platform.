@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ProfileDialog } from "@/pages/CustomerProfileForm";
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
-import { api, apiErrorMessage } from "@/lib/api";
+import { api, apiErrorMessage, listAll } from "@/lib/api";
 import { dateTime, money } from "@/lib/format";
 import type { CreditAssessment, CustomerProfile } from "@/types/api";
 
@@ -31,7 +31,7 @@ export function CustomerDetailPage() {
 
   const assessments = useQuery({
     queryKey: ["customers", id, "assessments"],
-    queryFn: () => api.get<CreditAssessment[]>(`/customers/${id}/credit-assessments/`).then((r) => r.data),
+    queryFn: () => listAll<CreditAssessment>(`/customers/${id}/credit-assessments/`),
   });
 
   const runAssessment = useMutation({
