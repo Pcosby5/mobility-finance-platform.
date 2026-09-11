@@ -6,6 +6,7 @@ import { BrowserRouter } from "react-router-dom";
 import App from "@/App";
 import { AuthProvider } from "@/auth/AuthContext";
 import { ApiError } from "@/lib/api";
+import { ThemeProvider } from "@/theme/ThemeContext";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -25,9 +26,11 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </ThemeProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

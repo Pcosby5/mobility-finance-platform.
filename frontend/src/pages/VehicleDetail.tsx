@@ -75,21 +75,21 @@ function TelemetryTable({ vehicleId }: { vehicleId: string }) {
         <EmptyState>No telemetry records for this filter.</EmptyState>
       ) : (
         <div className="max-h-96 overflow-y-auto overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="data-table">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                <th className="py-2 pr-4 font-medium">Recorded</th>
-                <th className="py-2 pr-4 font-medium">Position</th>
-                <th className="py-2 pr-4 font-medium">Speed</th>
-                <th className="py-2 pr-4 font-medium">Battery</th>
-                <th className="py-2 pr-4 font-medium">Ignition</th>
+              <tr>
+                <th>Recorded</th>
+                <th>Position</th>
+                <th>Speed</th>
+                <th>Battery</th>
+                <th>Ignition</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {(telemetry.data ?? []).map((record) => (
-                <tr key={record.id} className="hover:bg-slate-50">
-                  <td className="py-2 pr-4 text-slate-500">{dateTime(record.recorded_at)}</td>
-                  <td className="py-2 pr-4">
+                <tr key={record.id}>
+                  <td className="text-slate-500">{dateTime(record.recorded_at)}</td>
+                  <td>
                     <a
                       className="font-mono text-xs text-indigo-600 hover:underline"
                       href={osmLink(record.latitude, record.longitude)}
@@ -99,9 +99,9 @@ function TelemetryTable({ vehicleId }: { vehicleId: string }) {
                       {Number(record.latitude).toFixed(5)}, {Number(record.longitude).toFixed(5)}
                     </a>
                   </td>
-                  <td className="py-2 pr-4">{Number(record.speed_kph).toFixed(0)} km/h</td>
-                  <td className="py-2 pr-4">{orDash(record.battery_percent)}</td>
-                  <td className="py-2 pr-4">
+                  <td>{Number(record.speed_kph).toFixed(0)} km/h</td>
+                  <td>{orDash(record.battery_percent)}</td>
+                  <td>
                     {record.ignition === null ? "—" : record.ignition ? "On" : "Off"}
                   </td>
                 </tr>
@@ -182,7 +182,7 @@ function VehicleEditDialog({
             ))}
           </Select>
         </Field>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="submit" loading={patchVehicle.isPending} className="flex-1">
             Save changes
           </Button>
@@ -256,7 +256,7 @@ function GeofenceDialog({
     >
       <form onSubmit={handleSave} className="space-y-4">
         <FormError message={error} />
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-3">
           <Field label="Center latitude">
             <Input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="5.6037" />
           </Field>
@@ -267,7 +267,7 @@ function GeofenceDialog({
             <Input value={radius} onChange={(e) => setRadius(e.target.value)} placeholder="500" />
           </Field>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="submit" loading={mutation.isPending} className="flex-1">
             Save geofence
           </Button>
@@ -380,7 +380,7 @@ function DeviceDialog({
 
       {attached?.id ? (
         <div className="space-y-4">
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+          <dl className="grid gap-x-4 gap-y-4 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-xs uppercase tracking-wide text-slate-500">Device ID</dt>
               <dd className="mt-0.5 font-mono text-xs">{attached.device_id}</dd>
@@ -535,7 +535,7 @@ export function VehicleDetailPage() {
         </>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         <Card title="Status">
           <div className="mb-3 flex flex-wrap gap-2">
             <Badge tone={vehicleTone(data.status)}>{data.status}</Badge>
@@ -544,7 +544,7 @@ export function VehicleDetailPage() {
             </Badge>
             <Badge tone={movementTone(data.movement_status)}>{data.movement_status}</Badge>
           </div>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+          <dl className="grid gap-x-4 gap-y-4 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-xs uppercase tracking-wide text-slate-500">Customer</dt>
               <dd className="mt-0.5">

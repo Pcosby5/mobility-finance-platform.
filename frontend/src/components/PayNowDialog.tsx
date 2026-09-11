@@ -232,7 +232,7 @@ export function PayNowDialog({
             </p>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             {settled && created.status !== "SUCCESS" && (
               <Button
                 variant="secondary"
@@ -307,7 +307,7 @@ export function PayNowDialog({
               placeholder={selectedLoan ? selectedLoan.outstanding_balance : ""}
             />
           </Field>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Button type="submit" loading={initialize.isPending} className="flex-1">
               Continue to payment
             </Button>

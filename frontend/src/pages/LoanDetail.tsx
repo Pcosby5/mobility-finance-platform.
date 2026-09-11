@@ -9,6 +9,59 @@ import { api, apiErrorMessage, listAll } from "@/lib/api";
 import { date, dateTime, loanTone, money } from "@/lib/format";
 import type { CustomerProfile, Installment, Loan, Vehicle } from "@/types/api";
 
+function compactId(id: string): string {
+  return id.slice(0, 8);
+}
+
+function nextInstallment(installments: Installment[] | undefined): Installment | undefined {
+  if (!installments?.length) return undefined;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return (
+    installments.find((installment) => new Date(installment.due_date).getTime() >= today.getTime()) ??
+    installments.at(-1)
+  );
+}
+
+function Metric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
+  return (
+    <div className="rounded-3xl border border-[color:var(--line-soft)] bg-[color:var(--soft-bg)] p-4 sm:p-5">
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-faint)]">
+        {label}
+      </p>
+      <p className="mt-2 text-xl font-semibold tracking-tight text-[color:var(--text-strong)] sm:text-2xl">
+        {value}
+      </p>
+      {detail && <p className="mt-1 text-xs text-[color:var(--text-muted)]">{detail}</p>}
+    </div>
+  );
+}
+
+function DetailItem({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <dt className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-faint)]">
+        {label}
+      </dt>
+      <dd className="mt-1 text-sm text-[color:var(--text-main)]">{children}</dd>
+    </div>
+  );
+}
+
 export function LoanDetailPage() {
   const { id = "" } = useParams();
   const { user } = useAuth();
@@ -66,20 +119,28 @@ export function LoanDetailPage() {
 
   const data = loan.data!;
   const showActions = isStaff && data.status === "PENDING";
+  const linkedVehicle = vehicle.data;
+  const linkedCustomer = customer.data;
+  const nextDue = nextInstallment(installments.data);
+  const loanTitle = linkedVehicle
+    ? `${linkedVehicle.make} ${linkedVehicle.model_name} Financing`
+    : `Loan ${compactId(data.id)}`;
+  const loanSubtitleParts = [
+    linkedVehicle?.registration_number,
+    linkedCustomer?.full_name,
+    `Loan ${compactId(data.id)}`,
+  ].filter(Boolean);
 
   return (
     <>
       <PageHeader
-        title={`Loan ${data.id.slice(0, 8)}…`}
-        subtitle={
-          data.status === "PENDING"
-            ? "Pending — activation rechecks eligibility and affordability before setting the balance."
-            : "Flat simple interest with a server-calculated schedule."
-        }
+        title={loanTitle}
+        subtitle={loanSubtitleParts.join(" · ")}
         actions={
-          data.status === "ACTIVE" && (
-            <Button onClick={() => setShowPay(true)}>Pay now</Button>
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={loanTone(data.status)}>{data.status}</Badge>
+            {data.status === "ACTIVE" && <Button onClick={() => setShowPay(true)}>Pay now</Button>}
+          </div>
         }
       />
 
@@ -89,93 +150,86 @@ export function LoanDetailPage() {
         loan={data}
       />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Terms" actions={<Badge tone={loanTone(data.status)}>{data.status}</Badge>}>
+      <div className="grid gap-5">
+        <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+          <Metric
+            label="Outstanding balance"
+            value={money(data.outstanding_balance, data.currency)}
+            detail={data.status === "ACTIVE" ? "Live principal and interest balance" : "Set on activation"}
+          />
+          <Metric
+            label="Monthly payment"
+            value={money(data.monthly_repayment, data.currency)}
+            detail={`Final payment ${money(data.final_repayment, data.currency)}`}
+          />
+          <Metric
+            label="Next due date"
+            value={nextDue ? date(nextDue.due_date) : date(data.first_repayment_date)}
+            detail={nextDue ? `Installment ${nextDue.number}` : "Schedule pending"}
+          />
+          <Metric
+            label="Term"
+            value={`${data.duration_months} months`}
+            detail={`${data.annual_interest_rate}% flat simple interest`}
+          />
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr] xl:gap-5">
+        <Card title="Loan terms">
           <FormError message={actionError} />
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Principal</dt>
-              <dd className="mt-0.5">{money(data.principal_amount, data.currency)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Interest</dt>
-              <dd className="mt-0.5">
+          <dl className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+            <DetailItem label="Principal">
+              {money(data.principal_amount, data.currency)}
+            </DetailItem>
+            <DetailItem label="Interest">
                 {data.annual_interest_rate}% flat · {money(data.total_interest, data.currency)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Total repayable</dt>
-              <dd className="mt-0.5">{money(data.total_repayable, data.currency)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Outstanding</dt>
-              <dd className="mt-0.5">{money(data.outstanding_balance, data.currency)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Monthly / final</dt>
-              <dd className="mt-0.5">
+            </DetailItem>
+            <DetailItem label="Total repayable">
+              {money(data.total_repayable, data.currency)}
+            </DetailItem>
+            <DetailItem label="Outstanding">
+              {money(data.outstanding_balance, data.currency)}
+            </DetailItem>
+            <DetailItem label="Monthly / final">
                 {money(data.monthly_repayment, data.currency)} /{" "}
                 {money(data.final_repayment, data.currency)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Term</dt>
-              <dd className="mt-0.5">
+            </DetailItem>
+            <DetailItem label="Term">
                 {data.duration_months} months · first {date(data.first_repayment_date)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Policy</dt>
-              <dd className="mt-0.5 text-xs text-slate-500">{data.policy_version ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Timeline</dt>
-              <dd className="mt-0.5 text-xs text-slate-500">
+            </DetailItem>
+            <DetailItem label="Policy">
+              <span className="font-mono text-xs text-[color:var(--text-muted)]">
+                {data.policy_version ?? "—"}
+              </span>
+            </DetailItem>
+            <DetailItem label="Timeline">
+              <span className="text-xs text-[color:var(--text-muted)]">
                 created {dateTime(data.created_at)}
                 {data.activated_at ? ` · activated ${dateTime(data.activated_at)}` : ""}
                 {data.cancelled_at ? ` · cancelled ${dateTime(data.cancelled_at)}` : ""}
-              </dd>
-            </div>
-            <div className="col-span-2">
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Vehicle</dt>
-              <dd className="mt-0.5">
+              </span>
+            </DetailItem>
+            <div className="sm:col-span-2">
+              <DetailItem label="Vehicle">
                 {vehicle.data ? (
-                  <Link to={`/vehicles/${vehicle.data.id}`} className="text-indigo-600 hover:underline">
+                  <Link to={`/vehicles/${vehicle.data.id}`} className="font-semibold text-blue-600 hover:underline">
                     {vehicle.data.registration_number} · {vehicle.data.make} {vehicle.data.model_name}
                   </Link>
                 ) : (
-                  <span className="font-mono text-xs">{data.vehicle.slice(0, 8)}…</span>
+                  <span className="font-mono text-xs">{compactId(data.vehicle)}…</span>
                 )}
-              </dd>
+              </DetailItem>
             </div>
             {isStaff && customer.data && (
-              <div className="col-span-2">
-                <dt className="text-xs uppercase tracking-wide text-slate-500">Customer</dt>
-                <dd className="mt-0.5">
+              <div className="sm:col-span-2">
+                <DetailItem label="Customer">
                   <Link
                     to={`/customers/${customer.data.id}`}
-                    className="text-indigo-600 hover:underline"
+                    className="font-semibold text-blue-600 hover:underline"
                   >
                     {customer.data.full_name}
                   </Link>
-                </dd>
-              </div>
-            )}
-            {data.origination_snapshot && (
-              <div className="col-span-2">
-                <dt className="text-xs uppercase tracking-wide text-slate-500">
-                  Origination snapshot
-                </dt>
-                <dd className="mt-1">
-                  <details>
-                    <summary className="cursor-pointer text-xs font-medium text-indigo-600">
-                      Show stored inputs
-                    </summary>
-                    <pre className="mt-1 max-h-48 overflow-auto rounded-md bg-slate-50 p-2 font-mono text-xs text-slate-700">
-                      {JSON.stringify(data.origination_snapshot, null, 2)}
-                    </pre>
-                  </details>
-                </dd>
+                </DetailItem>
               </div>
             )}
           </dl>
@@ -204,25 +258,25 @@ export function LoanDetailPage() {
           ) : installments.data?.length === 0 ? (
             <EmptyState>No installments.</EmptyState>
           ) : (
-            <div className="max-h-[32rem] overflow-y-auto overflow-x-auto">
-              <table className="min-w-full text-sm">
+            <div className="max-h-[70svh] overflow-y-auto overflow-x-auto rounded-3xl border border-[color:var(--line-soft)] sm:max-h-[34rem]">
+              <table className="data-table">
                 <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <th className="py-2 pr-4 font-medium">#</th>
-                    <th className="py-2 pr-4 font-medium">Due</th>
-                    <th className="py-2 pr-4 font-medium">Principal</th>
-                    <th className="py-2 pr-4 font-medium">Interest</th>
-                    <th className="py-2 pr-4 font-medium">Amount</th>
+                  <tr className="sticky top-0 z-[1]">
+                    <th>#</th>
+                    <th>Due</th>
+                    <th className="text-right">Principal</th>
+                    <th className="text-right">Interest</th>
+                    <th className="text-right">Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {(installments.data ?? []).map((installment) => (
-                    <tr key={installment.id} className="hover:bg-slate-50">
-                      <td className="py-2 pr-4 text-slate-500">{installment.number}</td>
-                      <td className="py-2 pr-4">{date(installment.due_date)}</td>
-                      <td className="py-2 pr-4">{money(installment.principal_due)}</td>
-                      <td className="py-2 pr-4">{money(installment.interest_due)}</td>
-                      <td className="py-2 pr-4 font-medium">
+                    <tr key={installment.id}>
+                      <td className="text-[color:var(--text-muted)]">{installment.number}</td>
+                      <td>{date(installment.due_date)}</td>
+                      <td className="text-right tabular-nums">{money(installment.principal_due)}</td>
+                      <td className="text-right tabular-nums">{money(installment.interest_due)}</td>
+                      <td className="text-right font-semibold tabular-nums text-[color:var(--text-strong)]">
                         {money(installment.amount_due, data.currency)}
                       </td>
                     </tr>
@@ -232,6 +286,20 @@ export function LoanDetailPage() {
             </div>
           )}
         </Card>
+        </div>
+
+        {data.origination_snapshot && (
+          <Card title="Audit details" className="rounded-3xl">
+            <details>
+              <summary className="cursor-pointer text-sm font-semibold text-blue-600">
+                Show stored origination inputs
+              </summary>
+              <pre className="mt-4 max-h-72 overflow-auto rounded-2xl bg-[color:var(--code-bg)] p-4 font-mono text-xs leading-6 text-[color:var(--text-muted)] ring-1 ring-[color:var(--line-soft)]">
+                {JSON.stringify(data.origination_snapshot, null, 2)}
+              </pre>
+            </details>
+          </Card>
+        )}
       </div>
     </>
   );

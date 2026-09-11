@@ -97,7 +97,7 @@ export function RegisterDialog({ open, onClose }: { open: boolean; onClose: () =
               required
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="First name">
               <Input
                 value={form.first_name}
@@ -125,7 +125,7 @@ export function RegisterDialog({ open, onClose }: { open: boolean; onClose: () =
               required
             />
           </Field>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Button type="submit" loading={submitting} className="flex-1">
               Register
             </Button>
