@@ -5,6 +5,9 @@ import type { TokenPair } from "@/types/api";
 /** Base URL: "" in dev (Vite proxies /api to Django) or an absolute origin in prod. */
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
+/** Mount prefix baked into the axios baseURL; DRF's `next` links include it. */
+const API_MOUNT = "/api/v1";
+
 export class ApiError extends Error {
   status: number;
   /** DRF detail payload: string, field-error object, or list. */
@@ -207,8 +210,14 @@ export async function listAll<T>(path: string, params?: Record<string, unknown>)
     const page = data as { results: T[]; next: string | null };
     acc.push(...page.results);
     if (!page.next) break;
-    // next is an absolute URL; convert to a client-relative path.
-    url = page.next.startsWith(API_BASE_URL) ? page.next.slice(API_BASE_URL.length) : page.next;
+    // `next` is an absolute URL that already includes the /api/v1 mount
+    // prefix, and axios will re-add that prefix from the instance baseURL.
+    // Keep only the path after the prefix so joining is idempotent — this is
+    // what makes page 2+ work whether the base is empty (dev proxy) or an
+    // absolute origin (production).
+    const next = new URL(page.next, window.location.origin);
+    const path = next.pathname + next.search;
+    url = path.startsWith(`${API_MOUNT}/`) ? path.slice(API_MOUNT.length) : path;
     first = false;
   }
   return acc;
