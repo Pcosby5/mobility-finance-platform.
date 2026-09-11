@@ -98,14 +98,16 @@ export function Card({
       )}
     >
       {(title !== undefined || actions !== undefined) && (
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-5 py-4">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--line-soft)] px-4 py-3.5 sm:px-5 sm:py-4">
           {title !== undefined && (
-            <h2 className="text-sm font-semibold tracking-tight text-slate-950">{title}</h2>
+            <h2 className="text-sm font-semibold tracking-tight text-[color:var(--text-strong)]">
+              {title}
+            </h2>
           )}
           {actions !== undefined && <div className="flex items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className="px-5 py-4">{children}</div>
+      <div className="px-4 py-4 sm:px-5">{children}</div>
     </section>
   );
 }
@@ -123,7 +125,7 @@ export function Field({
 }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1.5 block font-semibold text-slate-700">{label}</span>
+      <span className="mb-1.5 block font-semibold text-[color:var(--text-main)]">{label}</span>
       {children}
       {hint !== undefined && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>
@@ -183,12 +185,18 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">{title}</h1>
-        {subtitle !== undefined && <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{subtitle}</p>}
+    <div className="mb-5 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-tight text-[color:var(--text-strong)] sm:text-3xl">
+          {title}
+        </h1>
+        {subtitle !== undefined && (
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--text-muted)]">
+            {subtitle}
+          </p>
+        )}
       </div>
-      {actions !== undefined && <div className="flex items-center gap-2">{actions}</div>}
+      {actions !== undefined && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

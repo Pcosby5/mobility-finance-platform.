@@ -69,7 +69,7 @@ export function CustomerDetailPage() {
 
       <ProfileDialog open={showEdit} onClose={() => setShowEdit(false)} profile={profile} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         <Card
           title="Financial profile"
           actions={
@@ -78,7 +78,7 @@ export function CustomerDetailPage() {
             </Button>
           }
         >
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+          <dl className="grid gap-x-4 gap-y-4 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-xs uppercase tracking-wide text-slate-500">Employment</dt>
               <dd className="mt-0.5">

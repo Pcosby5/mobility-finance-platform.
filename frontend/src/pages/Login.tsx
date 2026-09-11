@@ -40,13 +40,13 @@ export function LoginPage() {
             <span className="size-2 rounded-full bg-emerald-500" />
             FinTech and fleet operations workspace
           </div>
-          <h1 className="text-6xl font-semibold tracking-tight text-slate-950">
+          <h1 className="text-5xl font-semibold tracking-tight text-slate-950 xl:text-6xl">
             Mobility finance, built like a serious operations product.
           </h1>
           <p className="mt-6 max-w-lg text-lg leading-8 text-slate-600">
             Credit decisions, vehicle assignment, loan schedules, payment verification and telemetry alerts in one clean backend demo.
           </p>
-          <div className="mt-10 grid max-w-lg grid-cols-3 gap-3">
+          <div className="mt-8 grid max-w-lg grid-cols-3 gap-3 xl:mt-10">
             {["Credit", "Loans", "IoT Fleet"].map((item) => (
               <div key={item} className="glass-panel rounded-3xl px-4 py-5">
                 <p className="text-sm font-semibold text-slate-950">{item}</p>
@@ -68,7 +68,7 @@ export function LoginPage() {
             </h1>
             <p className="mt-2 text-sm text-slate-500">Credit, fleet and payments workspace</p>
           </div>
-          <Card title="Sign in" className="rounded-[2rem]">
+          <Card title="Sign in">
           <form onSubmit={handleSubmit} className="space-y-4">
             <FormError message={error} />
             <Field label="Username">

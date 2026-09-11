@@ -216,7 +216,7 @@ export function ProfileDialog({
           </Field>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="submit" loading={mutation.isPending} className="flex-1">
             {isEdit ? "Save changes" : "Create profile"}
           </Button>

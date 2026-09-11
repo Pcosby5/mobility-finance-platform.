@@ -10,11 +10,49 @@
 /* Base */
 html {
   color-scheme: light;
-  background: #f6f7f9;
+  background: var(--page-bg);
+  --page-bg: #f6f7f9;
+  --page-glow: #eef2ff;
+  --shell-bg: rgb(255 255 255 / 0.76);
+  --shell-border: rgb(255 255 255 / 0.7);
+  --surface-bg: rgb(255 255 255 / 0.84);
+  --surface-border: rgb(255 255 255 / 0.75);
+  --soft-bg: rgb(248 250 252 / 0.78);
+  --line-soft: rgb(226 232 240 / 0.78);
+  --nav-bg: rgb(241 245 249 / 0.82);
+  --nav-active: rgb(255 255 255 / 0.9);
+  --brand-block: #020617;
+  --text-strong: #020617;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --code-bg: rgb(248 250 252 / 0.86);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --page-bg: #080b12;
+  --page-glow: #172554;
+  --shell-bg: rgb(8 11 18 / 0.78);
+  --shell-border: rgb(148 163 184 / 0.14);
+  --surface-bg: rgb(15 23 42 / 0.72);
+  --surface-border: rgb(148 163 184 / 0.16);
+  --soft-bg: rgb(15 23 42 / 0.7);
+  --line-soft: rgb(148 163 184 / 0.16);
+  --nav-bg: rgb(15 23 42 / 0.86);
+  --nav-active: rgb(30 41 59 / 0.9);
+  --brand-block: #f8fafc;
+  --text-strong: #f8fafc;
+  --text-main: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+  --code-bg: rgb(2 6 23 / 0.62);
 }
 
 body {
-  @apply min-h-svh bg-[#f6f7f9] text-slate-950 antialiased;
+  @apply min-h-svh antialiased;
+  background: var(--page-bg);
+  color: var(--text-main);
   font-feature-settings:
     "rlig" 1,
     "calt" 1,
@@ -40,34 +78,48 @@ select {
 
 @layer components {
   .app-surface {
-    @apply rounded-[2rem] border border-white/75 bg-white/82 shadow-[0_24px_80px_rgba(15,23,42,0.08)] ring-1 ring-slate-950/[0.03] backdrop-blur-xl;
+    @apply rounded-3xl border shadow-[0_24px_80px_rgba(15,23,42,0.08)] ring-1 ring-slate-950/[0.03] backdrop-blur-xl sm:rounded-[2rem];
+    background: var(--surface-bg);
+    border-color: var(--surface-border);
   }
 
   .glass-panel {
-    @apply border border-white/70 bg-white/76 shadow-[0_18px_60px_rgba(15,23,42,0.08)] ring-1 ring-slate-950/[0.03] backdrop-blur-2xl;
+    @apply border shadow-[0_18px_60px_rgba(15,23,42,0.08)] ring-1 ring-slate-950/[0.03] backdrop-blur-2xl;
+    background: var(--surface-bg);
+    border-color: var(--surface-border);
   }
 
   .data-table {
-    @apply min-w-full border-separate border-spacing-0 text-sm;
+    @apply min-w-[44rem] border-separate border-spacing-0 text-sm;
   }
 
   .data-table thead tr {
-    @apply text-left text-[0.68rem] uppercase tracking-[0.14em] text-slate-400;
+    @apply text-left text-[0.68rem] uppercase tracking-[0.14em];
+    color: var(--text-faint);
   }
 
   .data-table th {
-    @apply border-b border-slate-200/80 bg-slate-50/70 px-4 py-3 font-semibold first:rounded-tl-2xl last:rounded-tr-2xl;
+    @apply border-b px-3 py-3 font-semibold first:rounded-tl-2xl last:rounded-tr-2xl sm:px-4;
+    background: var(--soft-bg);
+    border-color: var(--line-soft);
   }
 
   .data-table td {
-    @apply border-b border-slate-100 px-4 py-3.5 align-middle;
+    @apply border-b px-3 py-3.5 align-middle sm:px-4;
+    border-color: var(--line-soft);
   }
 
   .data-table tbody tr {
-    @apply transition duration-200 hover:bg-slate-50/80;
+    @apply transition duration-200;
+  }
+
+  .data-table tbody tr:hover {
+    background: var(--soft-bg);
   }
 
   .metric-link {
-    @apply relative overflow-hidden rounded-3xl border border-white/80 bg-white/85 p-5 shadow-[0_16px_50px_rgba(15,23,42,0.07)] ring-1 ring-slate-950/[0.03] transition duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-[0_22px_70px_rgba(15,23,42,0.1)];
+    @apply relative overflow-hidden rounded-3xl border p-4 shadow-[0_16px_50px_rgba(15,23,42,0.07)] ring-1 ring-slate-950/[0.03] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_70px_rgba(15,23,42,0.1)] sm:p-5;
+    background: var(--surface-bg);
+    border-color: var(--surface-border);
   }
 }

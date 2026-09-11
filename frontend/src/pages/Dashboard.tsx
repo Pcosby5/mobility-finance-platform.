@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -14,33 +14,110 @@ function StatCard({
   value,
   to,
   accent = "slate",
+  icon,
+  detail,
 }: {
   label: string;
   value: string | number | null | undefined;
   to: string;
   accent?: "slate" | "blue" | "emerald" | "amber";
+  icon: ReactNode;
+  detail: string;
 }) {
   const accents = {
-    slate: "from-slate-950 to-slate-700",
-    blue: "from-blue-600 to-cyan-500",
-    emerald: "from-emerald-600 to-teal-500",
-    amber: "from-amber-500 to-orange-500",
+    slate: {
+      icon: "bg-slate-100 text-slate-700 ring-slate-200",
+      glow: "bg-slate-400/12",
+    },
+    blue: {
+      icon: "bg-blue-50 text-blue-700 ring-blue-200",
+      glow: "bg-blue-400/12",
+    },
+    emerald: {
+      icon: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+      glow: "bg-emerald-400/12",
+    },
+    amber: {
+      icon: "bg-amber-50 text-amber-700 ring-amber-200",
+      glow: "bg-amber-400/12",
+    },
   } as const;
 
   return (
     <Link
       to={to}
-      className="metric-link block"
+      className="metric-link group block"
     >
-      <span className={`absolute right-4 top-4 size-9 rounded-2xl bg-gradient-to-br ${accents[accent]} opacity-10`} />
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-slate-400">
-        {label}
-      </p>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-        {value === null || value === undefined ? "..." : value}
-      </p>
-      <p className="mt-3 text-xs font-medium text-slate-400">Open details</p>
+      <span
+        className={`absolute -right-7 -top-7 size-24 rounded-full blur-2xl ${accents[accent].glow}`}
+      />
+      <div className="relative flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-faint)]">
+            {label}
+          </p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-[color:var(--text-strong)]">
+            {value === null || value === undefined ? "..." : value}
+          </p>
+        </div>
+        <span
+          className={`grid size-10 shrink-0 place-items-center rounded-2xl ring-1 ring-inset transition duration-300 group-hover:scale-105 sm:size-11 ${accents[accent].icon}`}
+        >
+          {icon}
+        </span>
+      </div>
+      <div className="relative mt-4 flex items-center justify-between gap-3">
+        <p className="text-xs font-medium text-[color:var(--text-muted)]">{detail}</p>
+        <span className="text-sm text-[color:var(--text-faint)] transition group-hover:translate-x-0.5">
+          →
+        </span>
+      </div>
     </Link>
+  );
+}
+
+function LoansIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-5" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h6m-6 4h4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h12a2 2 0 0 1 2 2v14l-3-2-3 2-3-2-3 2-3-2V5a2 2 0 0 1 2-2Z" />
+    </svg>
+  );
+}
+
+function PaymentsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-5" aria-hidden>
+      <rect x="3" y="5" width="18" height="14" rx="3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h3" />
+    </svg>
+  );
+}
+
+function AlertsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-5" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.3 4.2 2.9 17a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z" />
+    </svg>
+  );
+}
+
+function CustomersIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-5" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 19a4 4 0 0 0-8 0" />
+      <circle cx="12" cy="9" r="3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20 18a3.5 3.5 0 0 0-3-3.4M4 18a3.5 3.5 0 0 1 3-3.4" />
+    </svg>
+  );
+}
+
+function IncomeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="size-5" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 19V5m0 14h16M8 15l3-4 3 2 4-7" />
+    </svg>
   );
 }
 
@@ -108,14 +185,42 @@ function StaffDashboard() {
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Active loans" value={openLoans.length} to="/loans" accent="blue" />
-        <StatCard label="Pending payments" value={pendingPayments.length} to="/payments" accent="amber" />
-        <StatCard label="Open alerts" value={alerts.data?.length ?? null} to="/alerts" accent="slate" />
-        <StatCard label="Customers" value={customers.data?.length ?? null} to="/customers" accent="emerald" />
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+        <StatCard
+          label="Active loans"
+          value={openLoans.length}
+          to="/loans"
+          accent="blue"
+          icon={<LoansIcon />}
+          detail="Live financing book"
+        />
+        <StatCard
+          label="Pending payments"
+          value={pendingPayments.length}
+          to="/payments"
+          accent="amber"
+          icon={<PaymentsIcon />}
+          detail="Awaiting provider outcome"
+        />
+        <StatCard
+          label="Open alerts"
+          value={alerts.data?.length ?? null}
+          to="/alerts"
+          accent="slate"
+          icon={<AlertsIcon />}
+          detail="Fleet exceptions"
+        />
+        <StatCard
+          label="Customers"
+          value={customers.data?.length ?? null}
+          to="/customers"
+          accent="emerald"
+          icon={<CustomersIcon />}
+          detail="Financial profiles"
+        />
       </div>
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-2">
+      <div className="mt-5 grid gap-4 lg:grid-cols-2 xl:gap-5">
         <Card
           title="Recent loans"
           actions={
@@ -188,18 +293,22 @@ function CustomerDashboard() {
         onClose={() => setShowProfile(false)}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["customers"] })}
       />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard
           label="Monthly income"
           value={myProfile ? money(myProfile.monthly_income, myProfile.currency) : null}
           to="/profile"
           accent="emerald"
+          icon={<IncomeIcon />}
+          detail="Profile baseline"
         />
         <StatCard
           label="Active loans"
           value={activeLoans.length}
           to="/loans"
           accent="blue"
+          icon={<LoansIcon />}
+          detail="Current agreements"
         />
         <StatCard
           label="Monthly repayment"
@@ -216,11 +325,20 @@ function CustomerDashboard() {
           }
           to="/loans"
           accent="amber"
+          icon={<PaymentsIcon />}
+          detail="Scheduled obligation"
         />
-        <StatCard label="Open alerts" value={alerts.data?.length ?? null} to="/alerts" accent="slate" />
+        <StatCard
+          label="Open alerts"
+          value={alerts.data?.length ?? null}
+          to="/alerts"
+          accent="slate"
+          icon={<AlertsIcon />}
+          detail="Vehicle exceptions"
+        />
       </div>
 
-      <div className="mt-6 grid gap-5 lg:grid-cols-2">
+      <div className="mt-5 grid gap-4 lg:grid-cols-2 xl:gap-5">
         <Card
           title="My loans"
           actions={
