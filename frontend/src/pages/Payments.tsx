@@ -57,23 +57,23 @@ function LedgerTable({
     <>
       <FormError message={error} />
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="data-table">
           <thead>
-            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-              <th className="py-2 pr-4 font-medium">Reference</th>
-              <th className="py-2 pr-4 font-medium">Loan</th>
-              <th className="py-2 pr-4 font-medium">Provider</th>
-              <th className="py-2 pr-4 font-medium">Amount</th>
-              <th className="py-2 pr-4 font-medium">Status</th>
-              <th className="py-2 pr-4 font-medium">Created</th>
-              <th className="py-2 pr-4 font-medium" />
+            <tr>
+              <th>Reference</th>
+              <th>Loan</th>
+              <th>Provider</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody>
             {payments.map((payment) => (
-              <tr key={payment.id} className="hover:bg-slate-50">
-                <td className="py-2.5 pr-4 font-mono text-xs">{payment.reference}</td>
-                <td className="py-2.5 pr-4">
+              <tr key={payment.id}>
+                <td className="font-mono text-xs">{payment.reference}</td>
+                <td>
                   <Link
                     to={`/loans/${payment.loan}`}
                     className="font-mono text-xs text-indigo-600 hover:underline"
@@ -83,9 +83,9 @@ function LedgerTable({
                       payment.loan.slice(0, 8) + "…"}
                   </Link>
                 </td>
-                <td className="py-2.5 pr-4">{payment.provider}</td>
-                <td className="py-2.5 pr-4">{money(payment.amount, payment.currency)}</td>
-                <td className="py-2.5 pr-4">
+                <td>{payment.provider}</td>
+                <td>{money(payment.amount, payment.currency)}</td>
+                <td>
                   <Badge tone={paymentTone(payment.status)}>{payment.status}</Badge>
                   {payment.failure_reason && (
                     <span className="mt-0.5 block text-xs text-red-600">
@@ -96,10 +96,10 @@ function LedgerTable({
                     <span className="mt-0.5 block text-xs text-slate-500">{rowNote.note}</span>
                   )}
                 </td>
-                <td className="py-2.5 pr-4 text-slate-500" title={dateTime(payment.created_at)}>
+                <td className="text-slate-500" title={dateTime(payment.created_at)}>
                   {relativeTime(payment.created_at)}
                 </td>
-                <td className="py-2.5 pr-4 text-right">
+                <td className="text-right">
                   {payment.status === "PENDING" && (
                     <>
                       {payment.provider === "PAYSTACK" && (
@@ -129,28 +129,28 @@ function LedgerTable({
 function WebhookTable({ events }: { events: WebhookEvent[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full text-sm">
+      <table className="data-table">
         <thead>
-          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-            <th className="py-2 pr-4 font-medium">Provider</th>
-            <th className="py-2 pr-4 font-medium">Event</th>
-            <th className="py-2 pr-4 font-medium">Delivery ref</th>
-            <th className="py-2 pr-4 font-medium">Status</th>
-            <th className="py-2 pr-4 font-medium">Note</th>
-            <th className="py-2 pr-4 font-medium">Received</th>
+          <tr>
+            <th>Provider</th>
+            <th>Event</th>
+            <th>Delivery ref</th>
+            <th>Status</th>
+            <th>Note</th>
+            <th>Received</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody>
           {events.map((event) => (
-            <tr key={event.id} className="hover:bg-slate-50">
-              <td className="py-2.5 pr-4">{event.provider}</td>
-              <td className="py-2.5 pr-4 font-mono text-xs">{event.event_type}</td>
-              <td className="py-2.5 pr-4 font-mono text-xs">{event.delivery_reference}</td>
-              <td className="py-2.5 pr-4">
+            <tr key={event.id}>
+              <td>{event.provider}</td>
+              <td className="font-mono text-xs">{event.event_type}</td>
+              <td className="font-mono text-xs">{event.delivery_reference}</td>
+              <td>
                 <Badge tone={WEBHOOK_TONES[event.status]}>{event.status}</Badge>
               </td>
-              <td className="py-2.5 pr-4 text-xs text-slate-500">{event.note}</td>
-              <td className="py-2.5 pr-4 text-slate-500" title={dateTime(event.received_at)}>
+              <td className="text-xs text-slate-500">{event.note}</td>
+              <td className="text-slate-500" title={dateTime(event.received_at)}>
                 {relativeTime(event.received_at)}
               </td>
             </tr>

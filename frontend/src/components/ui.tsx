@@ -8,18 +8,18 @@ import { cx } from "@/lib/format";
 type Tone = "neutral" | "success" | "warning" | "danger" | "info";
 
 const TONE_CLASSES: Record<Tone, string> = {
-  neutral: "bg-slate-100 text-slate-700 ring-slate-200",
+  neutral: "bg-slate-100/80 text-slate-700 ring-slate-200",
   success: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  warning: "bg-amber-50 text-amber-700 ring-amber-200",
-  danger: "bg-red-50 text-red-700 ring-red-200",
-  info: "bg-sky-50 text-sky-700 ring-sky-200",
+  warning: "bg-amber-50 text-amber-800 ring-amber-200",
+  danger: "bg-rose-50 text-rose-700 ring-rose-200",
+  info: "bg-blue-50 text-blue-700 ring-blue-200",
 };
 
 export function Badge({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.08em] ring-1 ring-inset",
         TONE_CLASSES[tone],
       )}
     >
@@ -34,11 +34,11 @@ type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "bg-indigo-600 text-white hover:bg-indigo-500 focus-visible:outline-indigo-600 disabled:bg-indigo-300",
+    "bg-slate-950 text-white hover:bg-slate-800 focus-visible:outline-slate-950 disabled:bg-slate-300",
   secondary:
-    "bg-white text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 disabled:text-slate-400",
-  danger: "bg-red-600 text-white hover:bg-red-500 focus-visible:outline-red-600 disabled:bg-red-300",
-  ghost: "text-slate-700 hover:bg-slate-100 disabled:text-slate-400",
+    "bg-white/85 text-slate-900 ring-1 ring-inset ring-slate-200 hover:bg-white hover:ring-slate-300 disabled:text-slate-400",
+  danger: "bg-rose-600 text-white hover:bg-rose-500 focus-visible:outline-rose-600 disabled:bg-rose-300",
+  ghost: "text-slate-700 hover:bg-slate-100/80 disabled:text-slate-400",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -57,7 +57,7 @@ export function Button({
   return (
     <button
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold shadow-sm transition",
+        "inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold shadow-sm transition duration-200",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
         "disabled:cursor-not-allowed",
         BUTTON_VARIANTS[variant],
@@ -93,19 +93,19 @@ export function Card({
   return (
     <section
       className={cx(
-        "rounded-xl border border-slate-200 bg-white shadow-sm",
+        "app-surface",
         className,
       )}
     >
       {(title !== undefined || actions !== undefined) && (
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-5 py-4">
           {title !== undefined && (
-            <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+            <h2 className="text-sm font-semibold tracking-tight text-slate-950">{title}</h2>
           )}
           {actions !== undefined && <div className="flex items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className="px-4 py-3">{children}</div>
+      <div className="px-5 py-4">{children}</div>
     </section>
   );
 }
@@ -123,7 +123,7 @@ export function Field({
 }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block font-medium text-slate-700">{label}</span>
+      <span className="mb-1.5 block font-semibold text-slate-700">{label}</span>
       {children}
       {hint !== undefined && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>
@@ -134,8 +134,8 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return (
     <input
       className={cx(
-        "block w-full rounded-md border-0 px-3 py-2 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300",
-        "placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600",
+        "block w-full rounded-xl border-0 bg-white/90 px-3.5 py-2.5 text-sm text-slate-950 shadow-sm ring-1 ring-inset ring-slate-200 transition",
+        "placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-slate-950",
         "disabled:bg-slate-50 disabled:text-slate-500",
         className,
       )}
@@ -148,8 +148,8 @@ export function Select({ className, ...props }: InputHTMLAttributes<HTMLSelectEl
   return (
     <select
       className={cx(
-        "block w-full rounded-md border-0 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300",
-        "focus:ring-2 focus:ring-inset focus:ring-indigo-600",
+        "block w-full rounded-xl border-0 bg-white/90 px-3.5 py-2.5 text-sm text-slate-950 shadow-sm ring-1 ring-inset ring-slate-200 transition",
+        "focus:bg-white focus:ring-2 focus:ring-inset focus:ring-slate-950",
         className,
       )}
       {...props}
@@ -164,7 +164,7 @@ export function FormError({ message }: { message?: string | null }) {
   return (
     <p
       role="alert"
-      className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-inset ring-red-200"
+      className="rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm font-medium text-rose-700 ring-1 ring-inset ring-rose-200"
     >
       {message}
     </p>
@@ -183,10 +183,10 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
-        {subtitle !== undefined && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">{title}</h1>
+        {subtitle !== undefined && <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{subtitle}</p>}
       </div>
       {actions !== undefined && <div className="flex items-center gap-2">{actions}</div>}
     </div>
@@ -217,7 +217,12 @@ export function FullPageSpinner() {
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
-  return <p className="py-6 text-center text-sm text-slate-500">{children}</p>;
+  return (
+    <div className="py-12 text-center">
+      <div className="mx-auto mb-3 size-10 rounded-2xl bg-slate-100 ring-1 ring-slate-200" />
+      <p className="text-sm font-medium text-slate-500">{children}</p>
+    </div>
+  );
 }
 
 /* ---------------------------------- Dialog --------------------------------- */
@@ -267,7 +272,7 @@ export function Dialog({
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" aria-hidden />
+      <div className="absolute inset-0 bg-slate-950/45 backdrop-blur-sm" aria-hidden />
       <div
         ref={panelRef}
         role="dialog"
@@ -275,13 +280,13 @@ export function Dialog({
         aria-label={title}
         tabIndex={-1}
         className={cx(
-          "relative w-full rounded-xl bg-white shadow-xl outline-none",
+          "relative w-full rounded-[1.5rem] bg-white shadow-[0_32px_90px_rgba(15,23,42,0.28)] outline-none ring-1 ring-white/80",
           DIALOG_SIZES[size],
         )}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+        <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-slate-950">{title}</h2>
             {description !== undefined && (
               <p className="mt-0.5 text-sm text-slate-500">{description}</p>
             )}
@@ -290,7 +295,7 @@ export function Dialog({
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
           >
             <svg
               viewBox="0 0 24 24"
@@ -304,7 +309,7 @@ export function Dialog({
             </svg>
           </button>
         </header>
-        <div className="max-h-[calc(100vh-10rem)] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="max-h-[calc(100vh-10rem)] overflow-y-auto px-6 py-5">{children}</div>
       </div>
     </div>,
     document.body,
