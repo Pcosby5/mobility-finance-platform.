@@ -70,19 +70,28 @@ services:
       # deployed origin: https://<api-service>.onrender.com/api/v1/webhooks/paystack/
       # (set in the Paystack dashboard, not here).
 
-  # MQTT telemetry consumer: the same image/idea as the Compose service - one
-  # codebase, two long-running roles. It reconnects to the broker with backoff.
+  # MQTT telemetry consumer, packaged for the FREE tier: Render's free plan
+  # has no background workers (worker instances require a paid plan), so the
+  # consumer runs as a web service via run_telemetry_gateway — the shared
+  # consumer thread plus a /healthz endpoint on $PORT. Free web services spin
+  # down after 15 minutes without inbound HTTP traffic: ping /healthz at
+  # least every 14 minutes from an external monitor (cron-job.org,
+  # UptimeRobot, ...) to keep it consuming 24/7. A spin-down pauses ingestion
+  # only briefly; QoS 1 redelivery plus the (device_id, recorded_at) unique
+  # constraint make the gap harmless.
   # The broker itself is NOT part of this free-tier deployment: point
   # MQTT_BROKER_HOST/PORT at a public test broker, or see the README's
   # production-architecture section for the AWS IoT Core evolution.
   # The worker's build deliberately skips migrate/collectstatic: the web
   # service's build owns migrations, so concurrent deploys cannot race DDL.
-  - type: worker
+  # On paid plans, swap this service back to: type: worker +
+  # startCommand: cd backend && python manage.py run_mqtt_consumer
+  - type: web
     name: mobility-finance-consumer
     runtime: python
     plan: free
     buildCommand: pip install --no-cache-dir -r requirements/base.txt
-    startCommand: cd backend && python manage.py run_mqtt_consumer
+    startCommand: cd backend && python manage.py run_telemetry_gateway
     autoDeploy: true
     envVars:
       - key: DATABASE_URL
@@ -99,6 +108,8 @@ services:
         sync: false
       - key: MQTT_BROKER_PORT
         value: "1883"
+      # Render injects PORT for web services; the gateway binds it
+      # automatically, so nothing to set here.
       # Keeping both services' common env in sync (worker needs the same
       # ALLOWED_HOSTS/CSRF for manage.py commands that may build URLs).
       - key: ALLOWED_HOSTS
