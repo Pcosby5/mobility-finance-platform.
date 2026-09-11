@@ -191,10 +191,10 @@ export function PayNowDialog({
     >
       {created ? (
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-[color:var(--line-soft)] p-3">
             <div className="min-w-0">
-              <p className="truncate font-mono text-xs text-slate-500">{created.reference}</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-900">
+              <p className="truncate font-mono text-xs text-[color:var(--text-muted)]">{created.reference}</p>
+              <p className="mt-0.5 text-sm font-semibold text-[color:var(--text-strong)]">
                 {money(created.amount, created.currency)} · {created.provider}
               </p>
             </div>
@@ -211,7 +211,7 @@ export function PayNowDialog({
                   Continue to checkout
                 </a>
               )}
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-[color:var(--text-muted)]">
                 {note ?? "Waiting for the provider to confirm the payment…"}
               </p>
               <Button variant="secondary" loading={checking} onClick={checkNow} className="w-full">

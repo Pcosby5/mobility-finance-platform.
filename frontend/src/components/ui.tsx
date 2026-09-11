@@ -8,11 +8,11 @@ import { cx } from "@/lib/format";
 type Tone = "neutral" | "success" | "warning" | "danger" | "info";
 
 const TONE_CLASSES: Record<Tone, string> = {
-  neutral: "bg-slate-100/80 text-slate-700 ring-slate-200",
-  success: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  warning: "bg-amber-50 text-amber-800 ring-amber-200",
-  danger: "bg-rose-50 text-rose-700 ring-rose-200",
-  info: "bg-blue-50 text-blue-700 ring-blue-200",
+  neutral: "badge-neutral",
+  success: "badge-success",
+  warning: "badge-warning",
+  danger: "badge-danger",
+  info: "badge-info",
 };
 
 export function Badge({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
@@ -33,12 +33,10 @@ export function Badge({ tone = "neutral", children }: { tone?: Tone; children: R
 type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary:
-    "bg-slate-950 text-white hover:bg-slate-800 focus-visible:outline-slate-950 disabled:bg-slate-300",
-  secondary:
-    "bg-white/85 text-slate-900 ring-1 ring-inset ring-slate-200 hover:bg-white hover:ring-slate-300 disabled:text-slate-400",
-  danger: "bg-rose-600 text-white hover:bg-rose-500 focus-visible:outline-rose-600 disabled:bg-rose-300",
-  ghost: "text-slate-700 hover:bg-slate-100/80 disabled:text-slate-400",
+  primary: "btn-primary",
+  secondary: "btn-secondary",
+  danger: "btn-danger",
+  ghost: "btn-ghost",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -127,7 +125,7 @@ export function Field({
     <label className="block text-sm">
       <span className="mb-1.5 block font-semibold text-[color:var(--text-main)]">{label}</span>
       {children}
-      {hint !== undefined && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+      {hint !== undefined && <span className="mt-1 block text-xs text-[color:var(--text-muted)]">{hint}</span>}
     </label>
   );
 }
@@ -136,9 +134,10 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return (
     <input
       className={cx(
-        "block w-full rounded-xl border-0 bg-white/90 px-3.5 py-2.5 text-sm text-slate-950 shadow-sm ring-1 ring-inset ring-slate-200 transition",
-        "placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-inset focus:ring-slate-950",
-        "disabled:bg-slate-50 disabled:text-slate-500",
+        "block w-full rounded-xl border-0 px-3.5 py-2.5 text-sm shadow-sm ring-1 ring-inset transition",
+        "bg-[color:var(--input-bg)] text-[color:var(--text-strong)] ring-[color:var(--line-soft)] placeholder:text-[color:var(--text-faint)]",
+        "focus:bg-[color:var(--input-focus)] focus:ring-2 focus:ring-inset focus:ring-[color:var(--focus-ring)]",
+        "disabled:bg-[color:var(--soft-bg)] disabled:text-[color:var(--text-faint)]",
         className,
       )}
       {...props}
@@ -150,8 +149,9 @@ export function Select({ className, ...props }: InputHTMLAttributes<HTMLSelectEl
   return (
     <select
       className={cx(
-        "block w-full rounded-xl border-0 bg-white/90 px-3.5 py-2.5 text-sm text-slate-950 shadow-sm ring-1 ring-inset ring-slate-200 transition",
-        "focus:bg-white focus:ring-2 focus:ring-inset focus:ring-slate-950",
+        "block w-full rounded-xl border-0 px-3.5 py-2.5 text-sm shadow-sm ring-1 ring-inset transition",
+        "bg-[color:var(--input-bg)] text-[color:var(--text-strong)] ring-[color:var(--line-soft)]",
+        "focus:bg-[color:var(--input-focus)] focus:ring-2 focus:ring-inset focus:ring-[color:var(--focus-ring)]",
         className,
       )}
       {...props}
@@ -227,8 +227,8 @@ export function FullPageSpinner() {
 export function EmptyState({ children }: { children: ReactNode }) {
   return (
     <div className="py-12 text-center">
-      <div className="mx-auto mb-3 size-10 rounded-2xl bg-slate-100 ring-1 ring-slate-200" />
-      <p className="text-sm font-medium text-slate-500">{children}</p>
+      <div className="mx-auto mb-3 size-10 rounded-2xl bg-[color:var(--soft-bg)] ring-1 ring-[color:var(--line-soft)]" />
+      <p className="text-sm font-medium text-[color:var(--text-muted)]">{children}</p>
     </div>
   );
 }
@@ -288,22 +288,22 @@ export function Dialog({
         aria-label={title}
         tabIndex={-1}
         className={cx(
-          "relative w-full rounded-[1.5rem] bg-white shadow-[0_32px_90px_rgba(15,23,42,0.28)] outline-none ring-1 ring-white/80",
+          "relative w-full rounded-[1.5rem] bg-[color:var(--modal-bg)] shadow-[0_32px_90px_rgba(15,23,42,0.28)] outline-none ring-1 ring-[color:var(--surface-border)]",
           DIALOG_SIZES[size],
         )}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+        <header className="flex items-start justify-between gap-4 border-b border-[color:var(--line-soft)] px-6 py-5">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight text-slate-950">{title}</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-[color:var(--text-strong)]">{title}</h2>
             {description !== undefined && (
-              <p className="mt-0.5 text-sm text-slate-500">{description}</p>
+              <p className="mt-0.5 text-sm text-[color:var(--text-muted)]">{description}</p>
             )}
           </div>
           <button
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-full p-1.5 text-[color:var(--text-faint)] transition hover:bg-[color:var(--soft-bg)] hover:text-[color:var(--text-main)]"
           >
             <svg
               viewBox="0 0 24 24"

@@ -80,7 +80,7 @@ export function CustomerDetailPage() {
         >
           <dl className="grid gap-x-4 gap-y-4 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Employment</dt>
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">Employment</dt>
               <dd className="mt-0.5">
                 {profile.employment_status}
                 {profile.employment_duration_months !== null &&
@@ -88,25 +88,25 @@ export function CustomerDetailPage() {
               </dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Currency</dt>
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">Currency</dt>
               <dd className="mt-0.5">{profile.currency}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Monthly income</dt>
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">Monthly income</dt>
               <dd className="mt-0.5">{money(profile.monthly_income, profile.currency)}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Existing debt</dt>
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">Existing debt</dt>
               <dd className="mt-0.5">{money(profile.existing_debt, profile.currency)}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">
                 Monthly debt repayment
               </dt>
               <dd className="mt-0.5">{money(profile.monthly_debt_repayment, profile.currency)}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Member since</dt>
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">Member since</dt>
               <dd className="mt-0.5">{dateTime(profile.created_at)}</dd>
             </div>
           </dl>
@@ -136,24 +136,24 @@ export function CustomerDetailPage() {
               {assessmentList.map((assessment) => (
                 <li
                   key={assessment.id}
-                  className="rounded-lg border border-slate-200 p-3 text-sm"
+                  className="rounded-lg border border-[color:var(--line-soft)] p-3 text-sm"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-900">
+                    <span className="font-semibold text-[color:var(--text-strong)]">
                       Score {assessment.score} · {assessment.risk_band} risk
                     </span>
                     <DecisionBadge assessment={assessment} />
                   </div>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="mt-0.5 text-xs text-[color:var(--text-muted)]">
                     {dateTime(assessment.created_at)}
                     {assessment.policy_version ? ` · policy ${assessment.policy_version}` : ""}
                   </p>
                   <ul className="mt-2 space-y-1">
                     {assessment.factors.map((factor, index) => (
-                      <li key={index} className="text-xs text-slate-600">
+                      <li key={index} className="text-xs text-[color:var(--text-muted)]">
                         {factor.summary}
                         {factor.points !== undefined && (
-                          <span className="ml-1 text-slate-400">({factor.points > 0 ? "+" : ""}{factor.points})</span>
+                          <span className="ml-1 text-[color:var(--text-faint)]">({factor.points > 0 ? "+" : ""}{factor.points})</span>
                         )}
                       </li>
                     ))}

@@ -54,11 +54,11 @@ export function AlertsPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <select
           value={type}
           onChange={(e) => setType(e.target.value as AlertType | "")}
-          className="rounded-md border-0 bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600"
+          className="w-full rounded-xl border-0 bg-[color:var(--input-bg)] px-3.5 py-2.5 text-sm text-[color:var(--text-strong)] shadow-sm ring-1 ring-inset ring-[color:var(--line-soft)] focus:ring-2 focus:ring-inset focus:ring-[color:var(--focus-ring)] sm:w-auto"
         >
           <option value="">All types</option>
           {ALERT_TYPES.map((alertType) => (
@@ -67,15 +67,15 @@ export function AlertsPage() {
             </option>
           ))}
         </select>
-        <div className="flex gap-1 rounded-lg bg-slate-200/60 p-1 text-sm font-medium">
+        <div className="segmented-control w-full overflow-x-auto sm:w-fit">
           {(["open", "resolved", "all"] as const).map((key) => (
             <button
               key={key}
               onClick={() => setResolved(key)}
               className={
                 resolved === key
-                  ? "rounded-md bg-white px-3 py-1.5 capitalize text-slate-900 shadow-sm"
-                  : "rounded-md px-3 py-1.5 capitalize text-slate-600 hover:text-slate-900"
+                  ? "segmented-button segmented-button-active"
+                  : "segmented-button"
               }
             >
               {key}
@@ -101,7 +101,7 @@ export function AlertsPage() {
         ) : alerts.data?.length === 0 ? (
           <EmptyState>No {resolved === "all" ? "" : resolved + " "}alerts.</EmptyState>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-[color:var(--line-soft)]">
             {(alerts.data ?? []).map((alert) => {
               const vehicle = vehicleById.get(alert.vehicle);
               return (
@@ -109,7 +109,7 @@ export function AlertsPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <Badge tone={severityTone(alert.severity)}>{alert.type.replace("_", " ")}</Badge>
-                      <span className="text-xs text-slate-400" title={dateTime(alert.created_at)}>
+                      <span className="text-xs text-[color:var(--text-faint)]" title={dateTime(alert.created_at)}>
                         {relativeTime(alert.created_at)}
                       </span>
                       {alert.resolved_at && (
@@ -119,13 +119,13 @@ export function AlertsPage() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-sm text-slate-900">{alert.message}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="mt-1 text-sm text-[color:var(--text-strong)]">{alert.message}</p>
+                    <p className="text-xs text-[color:var(--text-muted)]">
                       Vehicle:{" "}
                       {vehicle ? (
                         <Link
                           to={`/vehicles/${vehicle.id}`}
-                          className="text-indigo-600 hover:underline"
+                          className="text-link hover:underline"
                         >
                           {vehicle.registration_number}
                         </Link>

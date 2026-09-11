@@ -88,10 +88,10 @@ function TelemetryTable({ vehicleId }: { vehicleId: string }) {
             <tbody>
               {(telemetry.data ?? []).map((record) => (
                 <tr key={record.id}>
-                  <td className="text-slate-500">{dateTime(record.recorded_at)}</td>
+                  <td className="text-[color:var(--text-muted)]">{dateTime(record.recorded_at)}</td>
                   <td>
                     <a
-                      className="font-mono text-xs text-indigo-600 hover:underline"
+                      className="font-mono text-xs text-link hover:underline"
                       href={osmLink(record.latitude, record.longitude)}
                       target="_blank"
                       rel="noreferrer"
@@ -382,11 +382,11 @@ function DeviceDialog({
         <div className="space-y-4">
           <dl className="grid gap-x-4 gap-y-4 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Device ID</dt>
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">Device ID</dt>
               <dd className="mt-0.5 font-mono text-xs">{attached.device_id}</dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">State</dt>
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">State</dt>
               <dd className="mt-0.5">
                 <Badge tone={attached.enabled ? "success" : "neutral"}>
                   {attached.enabled ? "ENABLED" : "DISABLED"}
@@ -394,7 +394,7 @@ function DeviceDialog({
               </dd>
             </div>
           </dl>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-[color:var(--text-muted)]">
             Disabling stops telemetry ingestion. Detaching frees the vehicle for another device.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -435,7 +435,7 @@ function DeviceDialog({
           ) : devices.isError ? (
             <p className="text-sm text-red-600">Could not load existing devices.</p>
           ) : unattached.length > 0 ? (
-            <form onSubmit={attachExisting} className="space-y-4 border-t border-slate-100 pt-4">
+            <form onSubmit={attachExisting} className="space-y-4 border-t border-[color:var(--line-soft)] pt-4">
               <Field label="Or attach an existing unassigned device">
                 <Select value={attachId} onChange={(e) => setAttachId(e.target.value)} required>
                   <option value="">Choose a device…</option>
@@ -546,12 +546,12 @@ export function VehicleDetailPage() {
           </div>
           <dl className="grid gap-x-4 gap-y-4 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Customer</dt>
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">Customer</dt>
               <dd className="mt-0.5">
                 {assignedCustomer ? (
                   <Link
                     to={`/customers/${assignedCustomer.id}`}
-                    className="text-indigo-600 hover:underline"
+                    className="text-link hover:underline"
                   >
                     {assignedCustomer.full_name}
                   </Link>
@@ -561,7 +561,7 @@ export function VehicleDetailPage() {
               </dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Device</dt>
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">Device</dt>
               <dd className="mt-0.5 font-mono text-xs">
                 {data.device?.device_id
                   ? `${data.device.device_id}${data.device.enabled ? "" : " (disabled)"}`
@@ -569,11 +569,11 @@ export function VehicleDetailPage() {
               </dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Last position</dt>
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">Last position</dt>
               <dd className="mt-0.5">
                 {data.last_latitude && data.last_longitude ? (
                   <a
-                    className="font-mono text-xs text-indigo-600 hover:underline"
+                    className="font-mono text-xs text-link hover:underline"
                     href={osmLink(data.last_latitude, data.last_longitude)}
                     target="_blank"
                     rel="noreferrer"
@@ -587,12 +587,12 @@ export function VehicleDetailPage() {
               </dd>
             </div>
             <div>
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Last report</dt>
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">Last report</dt>
               <dd className="mt-0.5">{dateTime(data.last_telemetry_at)}</dd>
             </div>
             <div className="col-span-2">
-              <dt className="text-xs uppercase tracking-wide text-slate-500">Geofence</dt>
-              <dd className="mt-0.5 text-sm text-slate-700">
+              <dt className="text-xs uppercase tracking-wide text-[color:var(--text-muted)]">Geofence</dt>
+              <dd className="mt-0.5 text-sm text-[color:var(--text-main)]">
                 {data.geofence_latitude != null && data.geofence_radius_m != null
                   ? `${Number(data.geofence_latitude).toFixed(5)}, ${Number(
                       data.geofence_longitude ?? "",

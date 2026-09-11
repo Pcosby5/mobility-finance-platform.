@@ -76,7 +76,7 @@ function LedgerTable({
                 <td>
                   <Link
                     to={`/loans/${payment.loan}`}
-                    className="font-mono text-xs text-indigo-600 hover:underline"
+                    className="font-mono text-xs text-link hover:underline"
                   >
                     {vehicleById.get(loanById.get(payment.loan)?.vehicle ?? "")
                       ?.registration_number ??
@@ -93,10 +93,10 @@ function LedgerTable({
                     </span>
                   )}
                   {rowNote?.reference === payment.reference && (
-                    <span className="mt-0.5 block text-xs text-slate-500">{rowNote.note}</span>
+                    <span className="mt-0.5 block text-xs text-[color:var(--text-muted)]">{rowNote.note}</span>
                   )}
                 </td>
-                <td className="text-slate-500" title={dateTime(payment.created_at)}>
+                <td className="text-[color:var(--text-muted)]" title={dateTime(payment.created_at)}>
                   {relativeTime(payment.created_at)}
                 </td>
                 <td className="text-right">
@@ -149,8 +149,8 @@ function WebhookTable({ events }: { events: WebhookEvent[] }) {
               <td>
                 <Badge tone={WEBHOOK_TONES[event.status]}>{event.status}</Badge>
               </td>
-              <td className="text-xs text-slate-500">{event.note}</td>
-              <td className="text-slate-500" title={dateTime(event.received_at)}>
+              <td className="text-xs text-[color:var(--text-muted)]">{event.note}</td>
+              <td className="text-[color:var(--text-muted)]" title={dateTime(event.received_at)}>
                 {relativeTime(event.received_at)}
               </td>
             </tr>
@@ -242,7 +242,7 @@ export function PaymentsPage() {
       )}
 
       {isStaff && (
-        <div className="mb-4 flex w-fit gap-1 rounded-lg bg-slate-200/60 p-1 text-sm font-medium">
+        <div className="segmented-control mb-4 w-fit overflow-x-auto">
           {(
             [
               ["ledger", "Ledger"],
@@ -254,8 +254,8 @@ export function PaymentsPage() {
               onClick={() => setView(key)}
               className={
                 view === key
-                  ? "rounded-md bg-white px-3 py-1.5 text-slate-900 shadow-sm"
-                  : "rounded-md px-3 py-1.5 text-slate-600 hover:text-slate-900"
+                  ? "segmented-button segmented-button-active"
+                  : "segmented-button"
               }
             >
               {label}

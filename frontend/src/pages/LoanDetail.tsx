@@ -235,7 +235,7 @@ export function LoanDetailPage() {
           </dl>
 
           {showActions && (
-            <div className="mt-4 flex gap-2 border-t border-slate-100 pt-4">
+            <div className="mt-4 flex gap-2 border-t border-[color:var(--line-soft)] pt-4">
               <Button loading={transition.isPending} onClick={() => transition.mutate("activate")}>
                 Activate
               </Button>

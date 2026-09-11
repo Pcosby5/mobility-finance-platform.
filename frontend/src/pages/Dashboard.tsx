@@ -26,19 +26,19 @@ function StatCard({
 }) {
   const accents = {
     slate: {
-      icon: "bg-slate-100 text-slate-700 ring-slate-200",
+      icon: "metric-icon-slate",
       glow: "bg-slate-400/12",
     },
     blue: {
-      icon: "bg-blue-50 text-blue-700 ring-blue-200",
+      icon: "metric-icon-blue",
       glow: "bg-blue-400/12",
     },
     emerald: {
-      icon: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+      icon: "metric-icon-emerald",
       glow: "bg-emerald-400/12",
     },
     amber: {
-      icon: "bg-amber-50 text-amber-700 ring-amber-200",
+      icon: "metric-icon-amber",
       glow: "bg-amber-400/12",
     },
   } as const;
@@ -124,14 +124,14 @@ function IncomeIcon() {
 function LoanRows({ loans }: { loans: Loan[] }) {
   if (loans.length === 0) return <EmptyState>No loans yet.</EmptyState>;
   return (
-    <ul className="divide-y divide-slate-100">
+    <ul className="divide-y divide-[color:var(--line-soft)]">
       {loans.slice(0, 5).map((loan) => (
         <li key={loan.id} className="flex items-center justify-between gap-3 py-2">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-slate-900">
+            <p className="truncate text-sm font-medium text-[color:var(--text-strong)]">
               {money(loan.principal_amount, loan.currency)} · {loan.duration_months} months
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[color:var(--text-muted)]">
               {money(loan.monthly_repayment, loan.currency)}/mo ·{" "}
               {loan.status === "ACTIVE" && loan.activated_at
                 ? `activated ${relativeTime(loan.activated_at)}`
@@ -148,12 +148,12 @@ function LoanRows({ loans }: { loans: Loan[] }) {
 function AlertRows({ alerts }: { alerts: Alert[] }) {
   if (alerts.length === 0) return <EmptyState>No open alerts.</EmptyState>;
   return (
-    <ul className="divide-y divide-slate-100">
+    <ul className="divide-y divide-[color:var(--line-soft)]">
       {alerts.slice(0, 5).map((alert) => (
         <li key={alert.id} className="flex items-center justify-between gap-3 py-2">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-slate-900">{alert.type}</p>
-            <p className="truncate text-xs text-slate-500">{alert.message}</p>
+            <p className="truncate text-sm font-medium text-[color:var(--text-strong)]">{alert.type}</p>
+            <p className="truncate text-xs text-[color:var(--text-muted)]">{alert.message}</p>
           </div>
           <Badge tone={severityTone(alert.severity)}>{alert.severity}</Badge>
         </li>
@@ -224,7 +224,7 @@ function StaffDashboard() {
         <Card
           title="Recent loans"
           actions={
-            <Link to="/loans" className="text-xs font-semibold text-indigo-600 hover:underline">
+            <Link to="/loans" className="text-xs font-semibold text-link hover:underline">
               View all
             </Link>
           }
@@ -241,7 +241,7 @@ function StaffDashboard() {
         <Card
           title="Open alerts"
           actions={
-            <Link to="/alerts" className="text-xs font-semibold text-indigo-600 hover:underline">
+            <Link to="/alerts" className="text-xs font-semibold text-link hover:underline">
               View all
             </Link>
           }
@@ -342,7 +342,7 @@ function CustomerDashboard() {
         <Card
           title="My loans"
           actions={
-            <Link to="/loans" className="text-xs font-semibold text-indigo-600 hover:underline">
+            <Link to="/loans" className="text-xs font-semibold text-link hover:underline">
               View all
             </Link>
           }
