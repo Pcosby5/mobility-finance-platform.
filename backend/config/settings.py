@@ -154,6 +154,20 @@ MQTT_USERNAME = env("MQTT_USERNAME", default="")
 MQTT_PASSWORD = env("MQTT_PASSWORD", default="")
 MQTT_KEEPALIVE_SECONDS = env.int("MQTT_KEEPALIVE_SECONDS", default=30)
 
+# The consumer (standalone or in the gateway) runs outside the web server, so
+# it has no server-provided log config; without this, INFO lines such as
+# "Stored telemetry for vehicle ..." never reach Render's log stream and the
+# pipeline cannot be verified on the deploy. Propagation is left on so the
+# root handler (gunicorn's) still picks these up inside web processes.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "loggers": {
+        "telemetry": {"handlers": ["console"], "level": "INFO"},
+    },
+}
+
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
