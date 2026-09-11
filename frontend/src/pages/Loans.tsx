@@ -123,7 +123,7 @@ function OriginationDialog({
       title="Originate a loan"
       description="The vehicle must be assigned to the customer and ACTIVE; the assessment must be APPROVED and recent. Amounts and schedules are server-calculated."
     >
-      <p className="mb-3 text-xs text-slate-500">
+      <p className="mb-3 text-xs text-[color:var(--text-muted)]">
         The vehicle must be assigned to the customer and ACTIVE, and the credit assessment must be
         APPROVED, younger than {ASSESSMENT_AGE_DAYS} days and match the current profile. Amounts,
         schedule and affordability are server-calculated.
@@ -331,11 +331,11 @@ export function LoansPage() {
                     <td>
                       <Link
                         to={`/loans/${loan.id}`}
-                        className="font-mono text-xs font-medium text-indigo-600 hover:underline"
+                        className="font-mono text-xs font-medium text-link hover:underline"
                       >
                         {loan.id.slice(0, 8)}…
                       </Link>
-                      <span className="block text-xs text-slate-500">
+                      <span className="block text-xs text-[color:var(--text-muted)]">
                         {vehicleById.get(loan.vehicle)?.registration_number ??
                           "vehicle " + loan.vehicle.slice(0, 8) + "…"}
                       </span>
@@ -345,19 +345,19 @@ export function LoansPage() {
                     <td>
                       {money(loan.outstanding_balance, loan.currency)}
                     </td>
-                    <td className="text-slate-500">
+                    <td className="text-[color:var(--text-muted)]">
                       {loan.duration_months} mo @ {loan.annual_interest_rate}%
                     </td>
                     <td>
                       <Badge tone={loanTone(loan.status)}>{loan.status}</Badge>
-                      <span className="mt-0.5 block text-xs text-slate-400">
+                      <span className="mt-0.5 block text-xs text-[color:var(--text-faint)]">
                         {loan.status === "ACTIVE" && loan.activated_at
                           ? `activated ${relativeTime(loan.activated_at)}`
                           : `created ${relativeTime(loan.created_at)}`}
                       </span>
                     </td>
                     {isStaff && (
-                      <td className="text-slate-500">
+                      <td className="text-[color:var(--text-muted)]">
                         {customerById.get(loan.customer)?.full_name ?? loan.customer.slice(0, 8) + "…"}
                       </td>
                     )}

@@ -43,11 +43,11 @@ export function CustomersPage() {
                     <td>
                       <Link
                         to={`/customers/${customer.id}`}
-                        className="font-medium text-indigo-600 hover:underline"
+                        className="font-medium text-link hover:underline"
                       >
                         {customer.full_name}
                       </Link>
-                      <span className="block text-xs text-slate-500">
+                      <span className="block text-xs text-[color:var(--text-muted)]">
                         {customer.username} · {customer.phone}
                       </span>
                     </td>
@@ -58,7 +58,7 @@ export function CustomersPage() {
                       {money(customer.monthly_income, customer.currency)}
                     </td>
                     <td>{money(customer.existing_debt)}</td>
-                    <td className="text-slate-500">{date(customer.created_at)}</td>
+                    <td className="text-[color:var(--text-muted)]">{date(customer.created_at)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -42,7 +42,7 @@ export function AppShell() {
         <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:gap-5 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-7">
             <NavLink to="/dashboard" className="group flex items-center gap-3">
-              <span className="grid size-9 place-items-center rounded-2xl bg-[color:var(--brand-block)] text-sm font-semibold text-white shadow-lg shadow-slate-950/15">
+              <span className="grid size-9 place-items-center rounded-2xl bg-[color:var(--brand-block)] text-sm font-semibold text-[color:var(--brand-text)] shadow-lg shadow-slate-950/15">
                 MF
               </span>
               <span className="min-w-0">
@@ -108,7 +108,7 @@ export function AppShell() {
             </button>
             <button
               onClick={handleLogout}
-              className="rounded-full bg-[color:var(--brand-block)] px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 sm:px-4"
+              className="btn-primary rounded-full px-3.5 py-2.5 text-sm font-semibold shadow-sm transition hover:opacity-90 sm:px-4"
             >
               <span className="hidden sm:inline">Sign out</span>
               <span className="sm:hidden">Exit</span>
@@ -124,7 +124,7 @@ export function AppShell() {
                 cx(
                   "shrink-0 rounded-full px-3.5 py-2 text-sm font-semibold transition",
                   isActive
-                    ? "bg-[color:var(--brand-block)] text-white shadow-sm"
+                    ? "bg-[color:var(--brand-block)] text-[color:var(--brand-text)] shadow-sm"
                     : "bg-[color:var(--nav-active)] text-[color:var(--text-muted)] ring-1 ring-[color:var(--line-soft)] hover:text-[color:var(--text-strong)]",
                 )
               }

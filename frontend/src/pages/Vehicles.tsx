@@ -233,11 +233,11 @@ export function VehiclesPage() {
                       <td>
                         <Link
                           to={`/vehicles/${vehicle.id}`}
-                          className="font-medium text-indigo-600 hover:underline"
+                          className="font-medium text-link hover:underline"
                         >
                           {vehicle.registration_number}
                         </Link>
-                        <span className="block text-xs text-slate-500">
+                        <span className="block text-xs text-[color:var(--text-muted)]">
                           {vehicle.make} {vehicle.model_name} · {vehicle.year}
                         </span>
                       </td>
@@ -254,20 +254,20 @@ export function VehiclesPage() {
                           {vehicle.movement_status}
                         </Badge>
                       </td>
-                      <td className="text-slate-500">
+                      <td className="text-[color:var(--text-muted)]">
                         {relativeTime(vehicle.last_telemetry_at)}
                       </td>
                       {isStaff && (
-                        <td className="text-slate-500">
+                        <td className="text-[color:var(--text-muted)]">
                           {assigned ? assigned.full_name : vehicle.customer ? "—" : "Unassigned"}
                         </td>
                       )}
-                      <td className="text-slate-500">
+                      <td className="text-[color:var(--text-muted)]">
                         {vehicle.device?.device_id ? (
                           vehicle.device.enabled ? (
                             <span className="font-mono text-xs">{vehicle.device.device_id}</span>
                           ) : (
-                            <span className="font-mono text-xs text-slate-400">
+                            <span className="font-mono text-xs text-[color:var(--text-faint)]">
                               {vehicle.device.device_id} (disabled)
                             </span>
                           )
