@@ -52,6 +52,11 @@ def parse_payload(payload) -> dict:
     """
     if not isinstance(payload, dict):
         raise ValueError("Telemetry payload must be a JSON object.")
+    # The payload spec calls the timestamp "timestamp"; ingestion names it
+    # "recorded_at". Accept either — explicit "recorded_at" wins if both appear.
+    payload = dict(payload)
+    if payload.get("recorded_at") in (None, ""):
+        payload["recorded_at"] = payload.get("timestamp")
     missing = [key for key in REQUIRED_KEYS if payload.get(key) in (None, "")]
     if missing:
         raise ValueError(f"Missing required fields: {', '.join(missing)}")

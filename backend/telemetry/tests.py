@@ -78,6 +78,23 @@ class PayloadParsingTests(TelemetryFixtureMixin, APITestCase):
         self.assertIs(fields["ignition"], True)
         self.assertTrue(timezone.is_aware(fields["recorded_at"]))
 
+    def test_parse_accepts_spec_timestamp_alias(self):
+        """The published payload spec uses "timestamp"; ingestion expects
+        "recorded_at". The GPS simulator sends "timestamp", so the alias must
+        parse — otherwise every simulated message is rejected."""
+        fields = parse_payload(self.base_payload(timestamp="2026-09-09T10:00:00+00:00"))
+        self.assertTrue(timezone.is_aware(fields["recorded_at"]))
+        self.assertEqual(fields["recorded_at"].isoformat(), "2026-09-09T10:00:00+00:00")
+
+    def test_recorded_at_wins_over_timestamp(self):
+        fields = parse_payload(
+            self.base_payload(
+                timestamp="2026-09-09T10:00:00+00:00",
+                recorded_at="2026-09-09T11:00:00+00:00",
+            )
+        )
+        self.assertEqual(fields["recorded_at"].isoformat(), "2026-09-09T11:00:00+00:00")
+
     def test_parse_rejects_missing_or_invalid_values(self):
         with self.assertRaises(ValueError):
             parse_payload({"device_id": "GPS-001"})
